@@ -1,0 +1,547 @@
+local NTST = NextTryStatusTracker
+local function L(key) return NTST.L(key) end
+local function msg(text) return NTST.Msg(text) end
+
+local function sanitizeDropdownChoices(choices, values)
+    local safeChoices, safeValues = {}, {}
+    if type(choices) == "table" then
+        for i = 1, #choices do
+            local choice = choices[i]
+            if choice ~= nil then
+                safeChoices[#safeChoices + 1] = choice
+                local value = type(values) == "table" and values[i] or choice
+                safeValues[#safeValues + 1] = value or ""
+            end
+        end
+    end
+    if #safeChoices == 0 then
+        safeChoices[1], safeValues[1] = L("none"), ""
+    end
+    while #safeValues < #safeChoices do safeValues[#safeValues + 1] = safeChoices[#safeValues + 1] or "" end
+    while #safeValues > #safeChoices do table.remove(safeValues) end
+    return safeChoices, safeValues
+end
+
+local function addControl(controls, control)
+    controls[#controls + 1] = control
+end
+
+local function addColor(controls, nameKey, tooltipKey, getter, setter, defaultColor, refresh)
+    addControl(controls, {
+        type = "colorpicker",
+        name = L(nameKey),
+        tooltip = tooltipKey and L(tooltipKey) or nil,
+        hasAlpha = true,
+        getFunc = function()
+            local c = getter()
+            return c.r, c.g, c.b, c.a
+        end,
+        setFunc = function(r, g, b, a)
+            setter({ r = r, g = g, b = b, a = a })
+            if refresh then NTST:Refresh(true) end
+        end,
+        default = NTST.CopyColor(defaultColor),
+    })
+end
+
+local function addSlider(controls, nameKey, tooltipKey, minValue, maxValue, step, getter, setter, defaultValue)
+    addControl(controls, {
+        type = "slider",
+        name = L(nameKey),
+        tooltip = tooltipKey and L(tooltipKey) or nil,
+        min = minValue,
+        max = maxValue,
+        step = step,
+        getFunc = getter,
+        setFunc = setter,
+        default = defaultValue,
+    })
+end
+
+local function addStyleControls(controls, state, headerKey)
+    local styles = NTST.sv.styles[state]
+    local defaults = NTST.defaults.styles[state]
+    local styleChoices = { L("normal"), L("bold") }
+    local styleValues = { "normal", "bold" }
+
+    if headerKey then addControl(controls, { type = "header", name = L(headerKey) }) end
+    addSlider(controls, "fontSize", nil, 8, 32, 1,
+        function() return styles.fontSize end,
+        function(value) styles.fontSize = value; NTST:Refresh(true) end,
+        defaults.fontSize)
+    addControl(controls, {
+        type = "dropdown",
+        name = L("fontStyle"),
+        choices = styleChoices,
+        choicesValues = styleValues,
+        getFunc = function() return styles.fontStyle end,
+        setFunc = function(value) styles.fontStyle = value; NTST:Refresh(true) end,
+        default = defaults.fontStyle,
+    })
+    addColor(controls, "fontColor", nil,
+        function() return styles.fontColor end,
+        function(color) styles.fontColor = color end,
+        defaults.fontColor,
+        true)
+    addColor(controls, "backgroundColor", nil,
+        function() return styles.backgroundColor end,
+        function(color) styles.backgroundColor = color end,
+        defaults.backgroundColor,
+        true)
+end
+
+local function buildSoundChoices()
+    local choices, values = { L("none") }, { "" }
+    local candidates = {
+        "QUEST_ACCEPTED", "QUEST_COMPLETED", "NEW_NOTIFICATION",
+        "DEFAULT_CLICK", "POSITIVE_CLICK", "NEGATIVE_CLICK", "MENU_BAR_CLICK",
+        "DIALOG_ACCEPT", "DIALOG_DECLINE", "READY_CHECK",
+        "BOOK_OPEN", "BOOK_CLOSE", "BOOK_ACQUIRED",
+        "ACHIEVEMENT_AWARDED", "LEVEL_UP", "CHAMPION_POINTS_COMMITTED",
+        "NEW_MAIL", "MAIL_ITEM_DELETED",
+        "MONEY_TRANSACT", "ALLIANCE_POINT_TRANSACT",
+        "LOOT_WINDOW", "MAP_PING", "GENERAL_ALERT_ERROR",
+        "ABILITY_SLOT_CLEARED", "ABILITY_SLOT_FILLED",
+        "SKILL_GAINED", "LOCKPICKING_FORCE",
+    }
+
+    local added = {}
+    local function addSound(key)
+        if key and not added[key] and (key == NTST.defaults.statusSound or not SOUNDS or SOUNDS[key]) then
+            added[key] = true
+            choices[#choices + 1] = key
+            values[#values + 1] = key
+        end
+    end
+
+    for _, key in ipairs(candidates) do addSound(key) end
+
+    if SOUNDS then
+        local keys = {}
+        local patterns = { "CLICK", "NOTIFICATION", "QUEST", "READY", "MAIL", "BOOK", "LEVEL", "ACHIEVEMENT", "CHAMPION", "MONEY", "LOOT", "MAP", "ERROR", "SKILL", "ABILITY", "GUILD", "GROUP" }
+        for key in pairs(SOUNDS) do
+            if type(key) == "string" then
+                for _, pattern in ipairs(patterns) do
+                    if string.find(key, pattern) then
+                        keys[#keys + 1] = key
+                        break
+                    end
+                end
+            end
+        end
+        table.sort(keys)
+        for i = 1, math.min(#keys, 80) do addSound(keys[i]) end
+    end
+
+    return choices, values
+end
+
+function NTST:RefreshSettingsDropdowns()
+    if NextTryStatusTrackerFriendDropdown and NextTryStatusTrackerFriendDropdown.UpdateChoices then
+        local friendChoices, friendValues = sanitizeDropdownChoices(self:BuildFriendChoices())
+        NextTryStatusTrackerFriendDropdown:UpdateChoices(friendChoices, friendValues)
+        NextTryStatusTrackerFriendDropdown:UpdateValue()
+    end
+    if NextTryStatusTrackerGuildDropdown and NextTryStatusTrackerGuildDropdown.UpdateChoices then
+        local guildChoices, guildValues = sanitizeDropdownChoices(self:BuildGuildChoices())
+        NextTryStatusTrackerGuildDropdown:UpdateChoices(guildChoices, guildValues)
+        NextTryStatusTrackerGuildDropdown:UpdateValue()
+    end
+    if NextTryStatusTrackerGuildMemberDropdown and NextTryStatusTrackerGuildMemberDropdown.UpdateChoices then
+        local memberChoices, memberValues = sanitizeDropdownChoices(self:BuildGuildMemberChoices(self.sv.selectedGuildId))
+        NextTryStatusTrackerGuildMemberDropdown:UpdateChoices(memberChoices, memberValues)
+        NextTryStatusTrackerGuildMemberDropdown:UpdateValue()
+    end
+    if NextTryStatusTrackerRemoveDropdown and NextTryStatusTrackerRemoveDropdown.UpdateChoices then
+        local trackedChoices, trackedValues = sanitizeDropdownChoices(self:BuildTrackedChoices())
+        NextTryStatusTrackerRemoveDropdown:UpdateChoices(trackedChoices, trackedValues)
+        NextTryStatusTrackerRemoveDropdown:UpdateValue()
+    end
+end
+
+function NTST:InstallSettingsPreviewHook(panelControl)
+    if not panelControl or self.settingsPreviewHooked then return end
+    self.settingsPreviewHooked = true
+
+    local function onShow() self:SetSettingsPreview(true) end
+    local function onHide() self:SetSettingsPreview(false) end
+
+    if ZO_PreHookHandler then
+        ZO_PreHookHandler(panelControl, "OnShow", onShow)
+        ZO_PreHookHandler(panelControl, "OnHide", onHide)
+    else
+        local oldShow, oldHide
+        if panelControl.GetHandler then
+            oldShow = panelControl:GetHandler("OnShow")
+            oldHide = panelControl:GetHandler("OnHide")
+        end
+        panelControl:SetHandler("OnShow", function(control, ...)
+            if oldShow then oldShow(control, ...) end
+            onShow()
+        end)
+        panelControl:SetHandler("OnHide", function(control, ...)
+            if oldHide then oldHide(control, ...) end
+            onHide()
+        end)
+    end
+
+    if panelControl.IsHidden and not panelControl:IsHidden() then
+        self:SetSettingsPreview(true)
+    end
+end
+
+function NTST:TryInstallSettingsPreviewHook(attempt)
+    attempt = attempt or 1
+    local panelControl = _G[self.name .. "Options"]
+    if panelControl then
+        self:InstallSettingsPreviewHook(panelControl)
+        return
+    end
+    if attempt < 10 and zo_callLater then
+        zo_callLater(function() self:TryInstallSettingsPreviewHook(attempt + 1) end, 250)
+    end
+end
+
+function NTST:CreateSettings()
+    local LAM = LibAddonMenu2 or (LibStub and LibStub("LibAddonMenu-2.0"))
+    if not LAM then
+        msg("LibAddonMenu-2.0 missing")
+        return
+    end
+
+    local panelData = {
+        type = "panel",
+        name = L("settingsTitle"),
+        displayName = L("settingsTitle"),
+        author = "R0ctan",
+        version = self.version,
+        registerForRefresh = true,
+        registerForDefaults = true,
+    }
+
+    LAM:RegisterAddonPanel(self.name .. "Options", panelData)
+    self:TryInstallSettingsPreviewHook()
+
+    local layoutChoices = { L("layoutVertical"), L("layoutHorizontal") }
+    local layoutValues = { "vertical", "horizontal" }
+    local nameChoices = { L("accountName"), L("characterName"), L("accountCharacterName"), L("characterAccountName") }
+    local nameValues = { "account", "character", "accountCharacter", "characterAccount" }
+    local sortChoices = { L("sortAlphabetical"), L("sortOnlineFirst"), L("sortOfflineFirst") }
+    local sortValues = { "alphabetical", "onlineFirst", "offlineFirst" }
+    local friendChoices, friendValues = sanitizeDropdownChoices(self:BuildFriendChoices())
+    local guildChoices, guildValues = sanitizeDropdownChoices(self:BuildGuildChoices())
+    local guildMemberChoices, guildMemberValues = sanitizeDropdownChoices(self:BuildGuildMemberChoices(self.sv.selectedGuildId))
+    local trackedChoices, trackedValues = sanitizeDropdownChoices(self:BuildTrackedChoices())
+    local soundChoices, soundValues = sanitizeDropdownChoices(buildSoundChoices())
+    local controls = {}
+
+    addControl(controls, { type = "description", text = L("settingsDescription") })
+    addControl(controls, {
+        type = "checkbox",
+        name = L("addonEnabled"),
+        tooltip = L("addonEnabledTooltip"),
+        getFunc = function() return self.sv.enabled end,
+        setFunc = function(value) self:SetEnabled(value) end,
+        default = self.defaults.enabled,
+    })
+    addControl(controls, {
+        type = "checkbox",
+        name = L("windowVisible"),
+        tooltip = L("windowVisibleTooltip"),
+        getFunc = function() return self.sv.visible end,
+        setFunc = function(value) self:SetVisible(value) end,
+        default = self.defaults.visible,
+    })
+    addControl(controls, {
+        type = "checkbox",
+        name = L("settingsPreview"),
+        tooltip = L("settingsPreviewTooltip"),
+        getFunc = function() return self.sv.settingsPreview end,
+        setFunc = function(value)
+            self.sv.settingsPreview = value and true or false
+            self:ApplyVisibility()
+            self:Refresh(true)
+        end,
+        default = self.defaults.settingsPreview,
+    })
+
+    local displayControls = {}
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("unlockUi"),
+        tooltip = L("unlockUiTooltip"),
+        getFunc = function() return self.sv.uiUnlocked end,
+        setFunc = function(value) self:SetUnlocked(value) end,
+        default = self.defaults.uiUnlocked,
+    })
+    addControl(displayControls, {
+        type = "dropdown",
+        name = L("layout"),
+        tooltip = L("layoutTooltip"),
+        choices = layoutChoices,
+        choicesValues = layoutValues,
+        getFunc = function() return self.sv.layout end,
+        setFunc = function(value) self.sv.layout = value; self:Refresh(true) end,
+        default = self.defaults.layout,
+    })
+    addControl(displayControls, {
+        type = "dropdown",
+        name = L("nameMode"),
+        tooltip = L("nameModeTooltip"),
+        choices = nameChoices,
+        choicesValues = nameValues,
+        getFunc = function() return self.sv.nameMode end,
+        setFunc = function(value) self.sv.nameMode = value; self:Refresh(true) end,
+        default = self.defaults.nameMode,
+    })
+    addControl(displayControls, {
+        type = "dropdown",
+        name = L("sortMode"),
+        tooltip = L("sortModeTooltip"),
+        choices = sortChoices,
+        choicesValues = sortValues,
+        getFunc = function() return self.sv.sortMode end,
+        setFunc = function(value) self.sv.sortMode = value; self:Refresh(true) end,
+        default = self.defaults.sortMode,
+    })
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("groupByStatus"),
+        tooltip = L("groupByStatusTooltip"),
+        getFunc = function() return self.sv.groupByStatus end,
+        setFunc = function(value) self.sv.groupByStatus = value; self:Refresh(true) end,
+        default = self.defaults.groupByStatus,
+    })
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("showOnlyOnline"),
+        tooltip = L("showOnlyOnlineTooltip"),
+        getFunc = function() return self.sv.showOnlyOnline end,
+        setFunc = function(value) self.sv.showOnlyOnline = value and true or false; self:Refresh(true) end,
+        default = self.defaults.showOnlyOnline,
+    })
+    addSlider(displayControls, "padding", "paddingTooltip", 0, 30, 1,
+        function() return self.sv.display.padding end,
+        function(value) self.sv.display.padding = value; self:Refresh(true) end,
+        self.defaults.display.padding)
+    addSlider(displayControls, "rowGap", "rowGapTooltip", 0, 30, 1,
+        function() return self.sv.display.rowGap end,
+        function(value) self.sv.display.rowGap = value; self:Refresh(true) end,
+        self.defaults.display.rowGap)
+    addSlider(displayControls, "groupGap", "groupGapTooltip", 0, 60, 1,
+        function() return self.sv.display.groupGap end,
+        function(value) self.sv.display.groupGap = value; self:Refresh(true) end,
+        self.defaults.display.groupGap)
+    addSlider(displayControls, "borderSize", "borderSizeTooltip", 0, 8, 1,
+        function() return self.sv.display.borderSize end,
+        function(value) self.sv.display.borderSize = value; self:Refresh(true) end,
+        self.defaults.display.borderSize)
+    addColor(displayControls, "windowBackgroundColor", "windowBackgroundColorTooltip",
+        function() return self.sv.display.backgroundColor end,
+        function(color) self.sv.display.backgroundColor = color end,
+        self.defaults.display.backgroundColor,
+        true)
+    addColor(displayControls, "windowBorderColor", "windowBorderColorTooltip",
+        function() return self.sv.display.borderColor end,
+        function(color) self.sv.display.borderColor = color end,
+        self.defaults.display.borderColor,
+        true)
+    addColor(displayControls, "unlockedBorderColor", "unlockedBorderColorTooltip",
+        function() return self.sv.display.unlockedBorderColor end,
+        function(color) self.sv.display.unlockedBorderColor = color end,
+        self.defaults.display.unlockedBorderColor,
+        true)
+    addSlider(displayControls, "refreshSeconds", nil, 10, 300, 5,
+        function() return self.sv.refreshSeconds end,
+        function(value) self.sv.refreshSeconds = value; self:UpdateRefreshInterval() end,
+        self.defaults.refreshSeconds)
+    addControl(displayControls, {
+        type = "button",
+        name = L("resetPosition"),
+        tooltip = L("resetPositionTooltip"),
+        func = function() self:ResetPosition() end,
+    })
+    addControl(controls, { type = "submenu", name = L("sectionDisplay"), controls = displayControls })
+
+    local blinkControls = {}
+    addSlider(blinkControls, "blinkCount", "blinkCountTooltip", 0, 10, 1,
+        function() return self.sv.blinkCount end,
+        function(value) self.sv.blinkCount = value end,
+        self.defaults.blinkCount)
+    addSlider(blinkControls, "blinkPhaseMs", "blinkPhaseMsTooltip", 100, 2000, 50,
+        function() return self.sv.blinkPhaseMs end,
+        function(value) self.sv.blinkPhaseMs = value end,
+        self.defaults.blinkPhaseMs)
+    addColor(blinkControls, "blinkFontColor", "blinkFontColorTooltip",
+        function() return self.sv.blinkFontColor end,
+        function(color) self.sv.blinkFontColor = color end,
+        self.defaults.blinkFontColor,
+        false)
+    addColor(blinkControls, "blinkBackgroundColor", "blinkBackgroundColorTooltip",
+        function() return self.sv.blinkBackgroundColor end,
+        function(color) self.sv.blinkBackgroundColor = color end,
+        self.defaults.blinkBackgroundColor,
+        false)
+    addControl(blinkControls, {
+        type = "button",
+        name = L("testBlink"),
+        tooltip = L("testBlinkTooltip"),
+        func = function() self:TestBlink() end,
+    })
+    addControl(controls, { type = "submenu", name = L("sectionBlink"), controls = blinkControls })
+
+    local soundControls = {}
+    addControl(soundControls, {
+        type = "checkbox",
+        name = L("soundEnabled"),
+        tooltip = L("soundEnabledTooltip"),
+        getFunc = function() return self.sv.soundEnabled end,
+        setFunc = function(value) self.sv.soundEnabled = value end,
+        default = self.defaults.soundEnabled,
+    })
+    addControl(soundControls, {
+        type = "dropdown",
+        name = L("statusSound"),
+        tooltip = L("statusSoundTooltip"),
+        choices = soundChoices,
+        choicesValues = soundValues,
+        getFunc = function() return self.sv.statusSound or "" end,
+        setFunc = function(value) self.sv.statusSound = value or "" end,
+        default = self.defaults.statusSound,
+    })
+    addControl(soundControls, {
+        type = "button",
+        name = L("testSound"),
+        tooltip = L("testSoundTooltip"),
+        func = function() self:TestStatusSound() end,
+    })
+    addControl(controls, { type = "submenu", name = L("sectionSound"), controls = soundControls })
+
+    local offlineControls = {}
+    addStyleControls(offlineControls, "offline")
+    addControl(controls, { type = "submenu", name = L("sectionOffline"), controls = offlineControls })
+
+    local onlineControls = {}
+    addStyleControls(onlineControls, "online")
+    addControl(controls, { type = "submenu", name = L("sectionOnline"), controls = onlineControls })
+
+    addControl(controls, { type = "header", name = L("sectionPlayers") })
+    addControl(controls, { type = "description", text = L("reloadHint") })
+    addControl(controls, {
+        type = "button",
+        name = L("refreshDropdowns"),
+        tooltip = L("refreshDropdownsTooltip"),
+        func = function() self:RefreshSettingsDropdowns() end,
+    })
+
+    addControl(controls, { type = "submenu", name = L("sectionFriendImport"), controls = {
+        {
+            type = "description",
+            text = L("friendImportHint"),
+        },
+        {
+            type = "dropdown",
+            name = L("friendDropdown"),
+            tooltip = L("friendDropdownTooltip"),
+            choices = friendChoices,
+            choicesValues = friendValues,
+            reference = "NextTryStatusTrackerFriendDropdown",
+            getFunc = function() return self.sv.selectedFriend or "" end,
+            setFunc = function(value) self.sv.selectedFriend = value or "" end,
+        },
+        {
+            type = "button",
+            name = L("addSelectedFriend"),
+            tooltip = L("addSelectedFriendTooltip"),
+            func = function() self:AddPlayer(self.sv.selectedFriend); self.sv.selectedFriend = ""; self:RefreshSettingsDropdowns() end,
+        },
+    } })
+
+    addControl(controls, { type = "submenu", name = L("sectionGuildImport"), controls = {
+        {
+            type = "description",
+            text = L("guildImportHint"),
+        },
+        {
+            type = "dropdown",
+            name = L("guildDropdown"),
+            tooltip = L("guildDropdownTooltip"),
+            choices = guildChoices,
+            choicesValues = guildValues,
+            reference = "NextTryStatusTrackerGuildDropdown",
+            getFunc = function() return self.sv.selectedGuildId or "" end,
+            setFunc = function(value)
+                self.sv.selectedGuildId = tostring(value or "")
+                self.sv.selectedGuildMember = ""
+                self:RefreshSettingsDropdowns()
+            end,
+        },
+        {
+            type = "button",
+            name = L("refreshGuildMembers"),
+            tooltip = L("refreshGuildMembersTooltip"),
+            func = function() self:RefreshSettingsDropdowns() end,
+        },
+        {
+            type = "dropdown",
+            name = L("guildMemberDropdown"),
+            tooltip = L("guildMemberDropdownTooltip"),
+            choices = guildMemberChoices,
+            choicesValues = guildMemberValues,
+            reference = "NextTryStatusTrackerGuildMemberDropdown",
+            getFunc = function() return self.sv.selectedGuildMember or "" end,
+            setFunc = function(value)
+                self.sv.selectedGuildMember = value or ""
+                local cached = self.guildMemberSelectionCache and self.guildMemberSelectionCache[self.NormalizeName(value)]
+                self.sv.selectedGuildMemberCharacter = cached and cached.characterName or ""
+            end,
+        },
+        {
+            type = "button",
+            name = L("addSelectedGuildMember"),
+            tooltip = L("addSelectedGuildMemberTooltip"),
+            func = function() self:AddSelectedGuildMember(); self:RefreshSettingsDropdowns() end,
+        },
+    } })
+
+    addControl(controls, { type = "submenu", name = L("sectionManualImport"), controls = {
+        {
+            type = "description",
+            text = L("manualImportWarning"),
+        },
+        {
+            type = "editbox",
+            name = L("manualPlayer"),
+            tooltip = L("manualPlayerTooltip"),
+            getFunc = function() return self.sv.manualPlayer end,
+            setFunc = function(value) self.sv.manualPlayer = value end,
+            isMultiline = false,
+            isExtraWide = false,
+        },
+        {
+            type = "button",
+            name = L("addManualPlayer"),
+            func = function() self:AddPlayer(self.sv.manualPlayer); self.sv.manualPlayer = ""; self:RefreshSettingsDropdowns() end,
+        },
+    } })
+
+    addControl(controls, { type = "submenu", name = L("sectionRemovePlayer"), controls = {
+        {
+            type = "dropdown",
+            name = L("removePlayer"),
+            tooltip = L("removePlayerTooltip"),
+            choices = trackedChoices,
+            choicesValues = trackedValues,
+            reference = "NextTryStatusTrackerRemoveDropdown",
+            getFunc = function() return self.sv.selectedRemovePlayer or "" end,
+            setFunc = function(value) self.sv.selectedRemovePlayer = value or "" end,
+        },
+        {
+            type = "button",
+            name = L("removeSelectedPlayer"),
+            func = function() self:RemovePlayer(self.sv.selectedRemovePlayer); self:RefreshSettingsDropdowns() end,
+        },
+    } })
+
+    LAM:RegisterOptionControls(self.name .. "Options", controls)
+end
