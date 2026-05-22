@@ -94,33 +94,95 @@ function NTST:CreateSceneFragment()
 end
 
 function NTST:IsSettingsPreviewActive()
-    return self.settingsPreviewActive and self.sv and self.sv.enabled and self.sv.settingsPreview
+    if not (self.settingsPreviewActive and self.sv and self.sv.enabled and self.sv.settingsPreview) then
+        return false
+    end
+
+    -- Guard against stale LibAddonMenu OnHide hooks. If the options panel is gone or hidden,
+    -- the preview must not be allowed to force the tracker visible over inventory/map/menus.
+    local panelControl = _G and _G[self.name .. "Options"]
+    if panelControl and panelControl.IsHidden and panelControl:IsHidden() then
+        return false
+    end
+
+    return true
+end
+
+function NTST:IsHudSceneShowing()
+    if not SCENE_MANAGER then return true end
+
+    if SCENE_MANAGER.IsShowing and (SCENE_MANAGER:IsShowing("hud") or SCENE_MANAGER:IsShowing("hudui")) then
+        return true
+    end
+
+    if SCENE_MANAGER.GetCurrentScene then
+        local scene = SCENE_MANAGER:GetCurrentScene()
+        if scene and scene.GetName then
+            local name = scene:GetName()
+            return name == "hud" or name == "hudui"
+        end
+    end
+
+    return false
 end
 
 function NTST:SetSettingsPreview(active)
     self.settingsPreviewActive = active and true or false
     self:ApplyVisibility()
-    if self.settingsPreviewActive and self.sv and self.sv.enabled then
+    if self:IsSettingsPreviewActive() then
         self:Refresh(true)
     end
 end
 
 function NTST:ApplyVisibility()
     if not self.container then return end
-    local disabled = not (self.sv and self.sv.enabled)
-    local hiddenByToggle = not (self.sv and self.sv.visible)
 
+    local preview = self:IsSettingsPreviewActive()
+    local disabled = not (self.sv and self.sv.enabled)
+    local hiddenByToggle = not preview and not (self.sv and self.sv.visible)
+    local hiddenByMenu = not preview and not self:IsHudSceneShowing()
+    local hidden = disabled or hiddenByToggle or hiddenByMenu
+
+    -- Keep all show/hide decisions centralized here. Scene fragments still handle normal HUD
+    -- transitions, while the additional menu reason prevents delayed Refresh/Preview calls
+    -- from re-showing the window over inventory, map, or other scenes.
     if self.fragment and self.fragment.SetHiddenForReason then
         self.fragment:SetHiddenForReason("disabled", disabled)
         self.fragment:SetHiddenForReason("toggle", hiddenByToggle)
-    elseif not self:IsSettingsPreviewActive() then
-        self.container:SetHidden(disabled or hiddenByToggle)
+        self.fragment:SetHiddenForReason("menu", hiddenByMenu)
     end
 
-    if self:IsSettingsPreviewActive() then
-        self.container:SetHidden(false)
-    elseif not self.fragment then
-        self.container:SetHidden(disabled or hiddenByToggle)
+    self.container:SetHidden(hidden)
+end
+
+function NTST:RegisterSceneVisibilityCallbacks()
+    if self.sceneVisibilityCallbacksRegistered or not SCENE_MANAGER then return end
+    self.sceneVisibilityCallbacksRegistered = true
+
+    local function onStateChanged()
+        self:ApplyVisibility()
+    end
+
+    local sceneNames = {
+        "hud",
+        "hudui",
+        "inventory",
+        "gameMenuInGame",
+        "worldMap",
+        "keyboardOptions",
+        "mailInbox",
+        "bank",
+        "guildStore",
+        "tradingHouse",
+        "skills",
+        "championPerks",
+    }
+
+    for _, sceneName in ipairs(sceneNames) do
+        local scene = SCENE_MANAGER:GetScene(sceneName)
+        if scene and scene.RegisterCallback then
+            scene:RegisterCallback("StateChange", onStateChanged)
+        end
     end
 end
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## Version 1.0.1
+
+Bugfix release.
+
+### Fixed
+
+- Fixed an issue where the tracker window could reappear while inventory, map or other ESO menus were open
+- Improved visibility handling for the "Enable Addon", "Show Tracker Window" and "Show Preview in Settings" options
+- Added additional scene state checks to keep the tracker hidden while menus are active
+
+### Changed
+
+- Updated add-on version to 1.0.1
+- Updated AddOnVersion to 10001
+
 ## Version 1.0.0
 
 Initial release.

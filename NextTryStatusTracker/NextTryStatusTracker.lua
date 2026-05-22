@@ -2,7 +2,7 @@ NextTryStatusTracker = NextTryStatusTracker or {}
 local NTST = NextTryStatusTracker
 
 NTST.name = "NextTryStatusTracker"
-NTST.version = "1.0.0"
+NTST.version = "1.0.1"
 NTST.savedVariablesName = "NextTryStatusTrackerSavedVariables"
 
 local em = EVENT_MANAGER
@@ -559,7 +559,7 @@ function NTST:ApplyMigrations()
         sv.sortMode = d.sortMode
     end
 
-    sv.dataVersion = 10000
+    sv.dataVersion = 10001
 end
 
 function NTST:RegisterEvents()
@@ -585,6 +585,7 @@ function NTST:Initialize()
     self.sv = ZO_SavedVars:NewAccountWide(self.savedVariablesName, 1, nil, self.defaults)
     self:ApplyMigrations()
     self:CreateUI()
+    self:RegisterSceneVisibilityCallbacks()
     self:SetUnlocked(self.sv.uiUnlocked)
     self:CreateSettings()
     self:RegisterEvents()
