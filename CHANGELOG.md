@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 1.0.2
+
+### Fixed
+
+- Replaced direct LibAddonMenu panel OnShow/OnHide handlers with official LAM panel callbacks.
+- Fixed LibAddonMenu warning about setting handlers directly on a panel.
+- Live preview in the addon settings remains available.
+
 ## Version 1.0.1
 
 Bugfix release.

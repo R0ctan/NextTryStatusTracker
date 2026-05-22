@@ -159,47 +159,41 @@ function NTST:RefreshSettingsDropdowns()
     end
 end
 
-function NTST:InstallSettingsPreviewHook(panelControl)
-    if not panelControl or self.settingsPreviewHooked then return end
-    self.settingsPreviewHooked = true
+function NTST:IsOwnSettingsPanel(panel)
+    if not panel then return false end
+    if self.settingsPanel and panel == self.settingsPanel then return true end
 
-    local function onShow() self:SetSettingsPreview(true) end
-    local function onHide() self:SetSettingsPreview(false) end
+    local panelControl = _G and _G[self.name .. "Options"]
+    if panelControl and panel == panelControl then return true end
 
-    if ZO_PreHookHandler then
-        ZO_PreHookHandler(panelControl, "OnShow", onShow)
-        ZO_PreHookHandler(panelControl, "OnHide", onHide)
-    else
-        local oldShow, oldHide
-        if panelControl.GetHandler then
-            oldShow = panelControl:GetHandler("OnShow")
-            oldHide = panelControl:GetHandler("OnHide")
-        end
-        panelControl:SetHandler("OnShow", function(control, ...)
-            if oldShow then oldShow(control, ...) end
-            onShow()
-        end)
-        panelControl:SetHandler("OnHide", function(control, ...)
-            if oldHide then oldHide(control, ...) end
-            onHide()
-        end)
-    end
-
-    if panelControl.IsHidden and not panelControl:IsHidden() then
-        self:SetSettingsPreview(true)
-    end
+    if panel.GetName and panel:GetName() == self.name .. "Options" then return true end
+    return false
 end
 
-function NTST:TryInstallSettingsPreviewHook(attempt)
-    attempt = attempt or 1
-    local panelControl = _G[self.name .. "Options"]
-    if panelControl then
-        self:InstallSettingsPreviewHook(panelControl)
-        return
-    end
-    if attempt < 10 and zo_callLater then
-        zo_callLater(function() self:TryInstallSettingsPreviewHook(attempt + 1) end, 250)
-    end
+function NTST:RegisterSettingsPreviewCallbacks()
+    if self.settingsPreviewCallbacksRegistered or not CALLBACK_MANAGER then return end
+    self.settingsPreviewCallbacksRegistered = true
+
+    CALLBACK_MANAGER:RegisterCallback("LAM-PanelOpened", function(panel)
+        if self:IsOwnSettingsPanel(panel) then
+            self:SetSettingsPreview(true)
+        end
+    end)
+
+    CALLBACK_MANAGER:RegisterCallback("LAM-PanelClosed", function(panel)
+        if self:IsOwnSettingsPanel(panel) then
+            self:SetSettingsPreview(false)
+        end
+    end)
+
+    CALLBACK_MANAGER:RegisterCallback("LAM-PanelControlsCreated", function(panel)
+        if self:IsOwnSettingsPanel(panel) then
+            self:RefreshSettingsDropdowns()
+            if panel.IsHidden and not panel:IsHidden() then
+                self:SetSettingsPreview(true)
+            end
+        end
+    end)
 end
 
 function NTST:CreateSettings()
@@ -219,8 +213,8 @@ function NTST:CreateSettings()
         registerForDefaults = true,
     }
 
-    LAM:RegisterAddonPanel(self.name .. "Options", panelData)
-    self:TryInstallSettingsPreviewHook()
+    self.settingsPanel = LAM:RegisterAddonPanel(self.name .. "Options", panelData) or (_G and _G[self.name .. "Options"])
+    self:RegisterSettingsPreviewCallbacks()
 
     local layoutChoices = { L("layoutVertical"), L("layoutHorizontal") }
     local layoutValues = { "vertical", "horizontal" }

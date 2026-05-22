@@ -2,7 +2,7 @@ NextTryStatusTracker = NextTryStatusTracker or {}
 local NTST = NextTryStatusTracker
 
 NTST.name = "NextTryStatusTracker"
-NTST.version = "1.0.1"
+NTST.version = "1.0.2"
 NTST.savedVariablesName = "NextTryStatusTrackerSavedVariables"
 
 local em = EVENT_MANAGER
