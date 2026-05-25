@@ -1,0 +1,31 @@
+Version 1.1.0
+
+Added:
+- Optional player location display.
+- Hover tooltip for online and offline players.
+- Optional friend note and guild note display in hover tooltip.
+- Right-click context menu on tracked player rows.
+- Context menu actions: whisper, group invite, travel to player, send mail, edit friend note where available and remove from tracker.
+- Configurable window anchor point: left, center or right.
+- Server-aware SavedVariables separation for EU, NA and PTS.
+- Shared helper structure under NextTryShared.WindowVisibility and NextTryShared.Chat.
+- ZOS-style localization using lang/default.lua and lang/$(language).lua.
+
+Changed:
+- Updated required dependency to LibAddonMenu-2.0>=43.
+- Reworked HUD visibility handling. The tracker is shown only in hud/hudui, except for its own settings preview.
+- Improved blink behavior during sorting, grouping and online-only filtering.
+- Improved status refresh throttling.
+- Removed configurable padding and border-size settings from the settings UI. The window now uses no internal padding and a fixed 2 px border while unlocked.
+- Online player names no longer use a text shadow.
+- Manual import now expects @AccountName.
+
+Fixed:
+- Fixed LibAddonMenu panel callback warning.
+- Fixed visibility issues where the tracker could appear in menus or hide in the normal HUD.
+- Fixed position saving and loading with different window anchor points.
+- Fixed reload position jumps.
+- Fixed SetEdgeTexture errors caused by unsupported edge texture sizes.
+- Fixed localization syntax regressions and aligned localization keys across languages.
+- Fixed status-change blinking being interrupted by concurrent refreshes.
+- Fixed tooltip behavior for offline players.

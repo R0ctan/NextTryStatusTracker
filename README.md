@@ -2,7 +2,7 @@
 
 NextTry StatusTracker is a configurable status tracker addon for The Elder Scrolls Online.
 
-It shows a small movable HUD window with selected friends and guild members and updates their online/offline status.
+It shows a small movable HUD window with selected friends and guild members and updates their online/offline status. It can also show the current zone, notes and a compact hover tooltip.
 
 ## Features
 
@@ -11,15 +11,22 @@ It shows a small movable HUD window with selected friends and guild members and 
 - Import players from your guild rosters
 - Manual account name entry as fallback
 - Configurable online and offline appearance
-- Optional online only display
-- Alphabetical, online first or offline first sorting
+- Optional online-only display
+- Optional player location display
+- Compact hover tooltip for online and offline players
+- Optional display of friend notes and guild notes in the hover tooltip
+- Alphabetical, online-first or offline-first sorting
 - Optional online/offline grouping
-- Configurable font size, font style, colors, background, border, padding and spacing
+- Configurable font size, font style, colors, background, border and spacing
 - Optional blink effect on status changes
 - Optional sound on status changes
+- Right-click context menu on tracked players
 - Movable and lockable HUD window
+- Configurable window anchor point: left, center or right
+- Keybind for showing and hiding the tracker window
 - Live preview in the addon settings
-- Multi language support
+- Multi-language support
+- Server-aware SavedVariables for EU, NA and PTS separation
 
 ## Supported languages
 
@@ -34,7 +41,7 @@ It shows a small movable HUD window with selected friends and guild members and 
 
 This addon requires:
 
-- LibAddonMenu-2.0
+- LibAddonMenu-2.0 r43 or newer
 
 Please install and enable LibAddonMenu-2.0 before using this addon.
 
@@ -60,13 +67,37 @@ Open the ESO settings menu and go to:
 Settings → Addons → NextTry StatusTracker
 ```
 
-There you can configure the tracker window, import players, change colors, test blinking and test sounds.
+There you can configure the tracker window, import players, change colors, test blinking, test sounds and adjust sorting or display options.
+
+## Player import
+
+Players can be added from your friend list, from your guild rosters or manually by entering an account name.
+
+Manual entry expects an `@AccountName`. The online/offline status can only be detected reliably if the player can be found in your friend list or in one of your guild rosters.
+
+## Hover tooltip
+
+The hover tooltip can show:
+
+```text
+@AccountName
+current_character_name
+current zone
+
+Note:
+
+note text
+```
+
+Friend notes are preferred. If no friend note is available, a guild note can be shown instead. The tooltip can also be shown for offline players, but the zone line is only displayed when a zone is available.
+
+## Right-click context menu
+
+Right-clicking a tracked player opens a small context menu with useful player actions such as whisper, group invite, travel to player, send mail, edit friend note where available and remove from tracker.
 
 ## Notes
 
-The manual account name entry is only a fallback option.
-
-The online/offline status can only be detected if the player can be found in your friend list or in one of your guild rosters.
+The tracker window is normally shown only in the ESO HUD and HUD UI scenes. It hides in menus such as map, inventory, guild, group, mail and other non-HUD scenes. The only intended exception is the live preview in the addon's own settings panel.
 
 ## Author
 
