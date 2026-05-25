@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ESO: Deploy StatusTracker",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-NoProfile",
+        "-File",
+        "${workspaceFolder}/tools/deploy.ps1"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
