@@ -1,122 +1,157 @@
-NextTryStatusTracker_Lang = NextTryStatusTracker_Lang or {}
-local language = GetCVar and GetCVar("language.2") or "en"
-if language == "fr" and ZO_CreateStringId then
-    ZO_CreateStringId("SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER", "NextTry StatusTracker")
-    ZO_CreateStringId("SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE", "Afficher/masquer NextTry StatusTracker")
+NextTryStatusTracker = NextTryStatusTracker or {}
+NextTryStatusTracker.Strings = NextTryStatusTracker.Strings or {}
+
+local function AddString(key, value)
+    local stringId = "NEXTTRYSTATUSTRACKER_" .. key
+    local id = _G[stringId]
+    if id and SafeAddString then
+        SafeAddString(id, value, 2)
+    end
 end
 
-NextTryStatusTracker_Lang.fr = {
-    addonName = "NextTry StatusTracker",
-    settingsTitle = "NextTry StatusTracker",
-    settingsDescription = "Affiche les amis sélectionnés et, en option, des membres de guilde dans une petite fenêtre de statut.",
-    addonEnabled = "Activer l’add-on",
-    addonEnabledTooltip = "Active ou désactive l’add-on. Les paramètres sont conservés.",
-    windowVisible = "Afficher la fenêtre du tracker",
-    windowVisibleTooltip = "Affiche ou masque uniquement la fenêtre du tracker. L’add-on reste actif et les paramètres sont conservés.",
-    settingsPreview = "Afficher l’aperçu dans les paramètres",
-    settingsPreviewTooltip = "Affiche la fenêtre du tracker comme aperçu en direct pendant que les paramètres de NextTry StatusTracker sont ouverts. Elle reste masquée dans les autres menus comme d’habitude.",
-    sectionDisplay = "Affichage",
-    unlockUi = "Déverrouiller l’interface",
-    unlockUiTooltip = "Si activé, les éléments propres à cet add-on peuvent être déplacés. Une bordure discrète indique l’état déverrouillé.",
-    layout = "Disposition",
-    layoutTooltip = "Choisissez si les noms des joueurs sont affichés verticalement ou horizontalement.",
-    layoutVertical = "Verticale",
-    layoutHorizontal = "Horizontale",
-    nameMode = "Nom affiché",
-    nameModeTooltip = "Choisissez d’afficher le nom de compte, le nom de personnage ou une combinaison. Les noms de personnage ne sont disponibles que si ESO les fournit via la liste d’amis ou la liste de guilde.",
-    accountName = "Nom de compte @",
-    characterName = "Nom du personnage",
-    accountCharacterName = "@Compte Personnage",
-    characterAccountName = "Personnage @Compte",
-    sortMode = "Tri",
-    sortModeTooltip = "Définit l’ordre de la liste du tracker.",
-    sortAlphabetical = "Alphabétique",
-    sortOnlineFirst = "En ligne d’abord",
-    sortOfflineFirst = "Hors ligne d’abord",
-    groupByStatus = "Grouper en ligne/hors ligne",
-    groupByStatusTooltip = "Sépare l’affichage en blocs en ligne et hors ligne et utilise l’écart de groupe entre eux.",
-    showOnlyOnline = "Afficher uniquement les joueurs en ligne",
-    showOnlyOnlineTooltip = "Masque les joueurs hors ligne et n’affiche que les joueurs détectés en ligne.",
-    padding = "Marge intérieure",
-    paddingTooltip = "Espace entre le cadre de la fenêtre et les lignes de joueurs.",
-    rowGap = "Espacement des lignes",
-    rowGapTooltip = "Espace entre les lignes de joueurs.",
-    groupGap = "Espacement des groupes",
-    groupGapTooltip = "Espace supplémentaire entre les blocs en ligne et hors ligne.",
-    borderSize = "Taille de la bordure",
-    borderSizeTooltip = "Taille de la bordure de la fenêtre. Au moins 2 pixels sont affichés lorsque l’interface est déverrouillée.",
-    windowBackgroundColor = "Couleur de fond de la fenêtre",
-    windowBackgroundColorTooltip = "Couleur de fond de toute la fenêtre du tracker, transparence incluse.",
-    windowBorderColor = "Couleur de bordure de la fenêtre",
-    windowBorderColorTooltip = "Couleur de bordure verrouillée, transparence incluse.",
-    unlockedBorderColor = "Couleur de bordure déverrouillée",
-    unlockedBorderColorTooltip = "Couleur de bordure discrète lorsque l’interface de l’add-on est déverrouillée.",
-    refreshSeconds = "Intervalle d’actualisation",
-    resetPosition = "Réinitialiser la position",
-    resetPositionTooltip = "Replace la fenêtre au centre plus 25 % de la largeur de l’écran.",
-    sectionBlink = "Clignotement",
-    blinkCount = "Clignotements au changement de statut",
-    blinkCountTooltip = "Définit le nombre de clignotements lorsqu’un joueur passe en ligne ou hors ligne. 0 désactive l’effet.",
-    blinkPhaseMs = "Durée d’une phase de clignotement (ms)",
-    blinkPhaseMsTooltip = "Durée d’une phase en millisecondes. Séquence : ancien affichage, affichage clignotant, répétition, puis statut final.",
-    blinkFontColor = "Couleur du texte du clignotement",
-    blinkFontColorTooltip = "Couleur du texte pendant l’affichage clignotant.",
-    blinkBackgroundColor = "Couleur de fond du clignotement",
-    blinkBackgroundColorTooltip = "Couleur de fond pendant l’affichage clignotant.",
-    testBlink = "Tester le clignotement",
-    testBlinkTooltip = "Joue l’effet de clignotement une fois pour l’affichage actuel sans changer de statut.",
-    sectionSound = "Son",
-    soundEnabled = "Son au changement de statut",
-    soundEnabledTooltip = "Joue éventuellement un son interne de l’interface ESO lorsqu’un joueur change de statut en ligne/hors ligne.",
-    statusSound = "Son de changement de statut",
-    statusSoundTooltip = "Sélectionne un son interne ESO depuis la table SOUNDS.",
-    testSound = "Tester le son",
-    testSoundTooltip = "Joue une fois le son actuellement sélectionné.",
-    sectionOffline = "Joueur hors ligne",
-    sectionOnline = "Joueur en ligne",
-    fontSize = "Taille de police",
-    fontColor = "Couleur du texte",
-    backgroundColor = "Couleur de fond",
-    fontStyle = "Style de police",
-    normal = "Normal",
-    bold = "Gras",
-    sectionPlayers = "Liste des joueurs",
-    refreshDropdowns = "Actualiser les listes",
-    refreshDropdownsTooltip = "Recharge la liste d’amis, la sélection de guilde et la liste du tracker pour les menus déroulants.",
-    sectionFriendImport = "Import depuis la liste d’amis",
-    friendImportHint = "Sélectionnez un joueur de votre liste d’amis ESO et ajoutez-le au tracker.",
-    friendDropdown = "Sélectionner un ami",
-    friendDropdownTooltip = "Sélectionnez un joueur de votre liste d’amis ESO actuelle.",
-    addSelectedFriend = "Ajouter l’ami sélectionné",
-    addSelectedFriendTooltip = "Ajoute l’ami sélectionné à la liste du tracker.",
-    sectionGuildImport = "Import de guilde",
-    guildImportHint = "Les membres de guilde ne sont chargés pour le menu déroulant qu’à la demande. Pendant l’actualisation normale, seules les guildes contenant déjà des joueurs suivis sont vérifiées.",
-    guildDropdown = "Sélectionner une guilde",
-    guildDropdownTooltip = "Sélectionnez une de vos guildes comme source d’import.",
-    refreshGuildMembers = "Actualiser les membres de guilde",
-    refreshGuildMembersTooltip = "Recharge la liste des membres de la guilde sélectionnée pour le menu déroulant.",
-    guildMemberDropdown = "Sélectionner un membre de guilde",
-    guildMemberDropdownTooltip = "Sélectionnez un membre de la guilde choisie.",
-    addSelectedGuildMember = "Ajouter le membre sélectionné",
-    addSelectedGuildMemberTooltip = "Ajoute le membre sélectionné au tracker et enregistre la guilde source pour les contrôles de statut ultérieurs.",
-    sectionManualImport = "Import manuel",
-    manualImportWarning = "Remarque : le statut en ligne ne peut être détecté que si le joueur se trouve dans votre liste d’amis ou dans l’une de vos guildes. Les entrées manuelles servent surtout de solution de secours ou de préparation.",
-    manualPlayer = "Ajouter un joueur manuellement",
-    manualPlayerTooltip = "Entrez un nom de compte, de préférence au format @NomDeCompte.",
-    addManualPlayer = "Ajouter le joueur manuel",
-    sectionRemovePlayer = "Retirer un joueur",
-    removePlayer = "Retirer un joueur",
-    removePlayerTooltip = "Sélectionnez une entrée existante du tracker.",
-    removeSelectedPlayer = "Retirer le joueur sélectionné",
-    trackedPlayers = "Joueurs actuellement suivis",
-    reloadHint = "Si votre liste d’amis a beaucoup changé, rechargez l’interface pour actualiser entièrement les listes : /reloadui",
-    none = "Aucun",
-    unknown = "Inconnu",
-    online = "En ligne",
-    offline = "Hors ligne",
-    added = "ajouté",
-    removed = "retiré",
-    alreadyTracked = "est déjà suivi.",
-    invalidName = "Veuillez saisir un nom valide.",
-    noTrackedPlayers = "Aucun joueur n’est encore dans la liste du tracker.",
-}
+if SafeAddString then
+    SafeAddString(SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER, "NextTry StatusTracker", 2)
+    SafeAddString(SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE, "Afficher/masquer NextTry StatusTracker", 2)
+end
+
+AddString("accountCharacterName", "@Compte Personnage")
+AddString("accountName", "Nom de compte @")
+AddString("addManualPlayer", "Ajouter le joueur manuel")
+AddString("addManualPlayerTooltip", "Ajoute le @NomDeCompte saisi à la liste du tracker. Les noms de personnage ne sont pas pris en charge pour l’import manuel.")
+AddString("addSelectedFriend", "Ajouter l’ami sélectionné")
+AddString("addSelectedFriendTooltip", "Ajoute l’ami sélectionné à la liste du tracker.")
+AddString("addSelectedGuildMember", "Ajouter le membre sélectionné")
+AddString("addSelectedGuildMemberTooltip", "Ajoute le membre sélectionné au tracker et enregistre la guilde source pour les contrôles de statut ultérieurs.")
+AddString("added", "ajouté")
+AddString("addonName", "NextTry StatusTracker")
+AddString("alreadyTracked", "est déjà suivi.")
+AddString("anchorCenter", "Centre")
+AddString("anchorLeft", "Bord gauche")
+AddString("anchorRight", "Bord droit")
+AddString("backgroundColor", "Couleur de fond")
+AddString("backgroundColorTooltip", "Définit la couleur d’arrière-plan de la ligne pour ce statut, transparence comprise.")
+AddString("blinkBackgroundColor", "Couleur de fond du clignotement")
+AddString("blinkBackgroundColorTooltip", "Couleur de fond pendant l’affichage clignotant.")
+AddString("blinkCount", "Clignotements au changement de statut")
+AddString("blinkCountTooltip", "Définit le nombre de clignotements lorsqu’un joueur passe en ligne ou hors ligne. 0 désactive l’effet.")
+AddString("blinkFontColor", "Couleur du texte du clignotement")
+AddString("blinkFontColorTooltip", "Couleur du texte pendant l’affichage clignotant.")
+AddString("blinkPhaseMs", "Durée d’une phase de clignotement (ms)")
+AddString("blinkPhaseMsTooltip", "Durée d’une phase en millisecondes. Séquence : ancien affichage, affichage clignotant, répétition, puis statut final.")
+AddString("bold", "Gras")
+AddString("borderSize", "Taille de la bordure")
+AddString("borderSizeTooltip", "Taille de la bordure de la fenêtre. Au moins 2 pixels sont affichés lorsque l’interface est déverrouillée.")
+AddString("characterAccountName", "Personnage @Compte")
+AddString("characterName", "Nom du personnage")
+AddString("contextWhisper", "Chuchoter")
+AddString("contextTravelToPlayer", "Voyager vers le joueur")
+AddString("contextRemoveFromTracker", "Retirer du tracker")
+AddString("contextInviteGroup", "Inviter dans le groupe")
+AddString("contextSendMail", "Envoyer un courrier")
+AddString("contextEditNote", "Modifier la note")
+AddString("fontColor", "Couleur du texte")
+AddString("fontColorTooltip", "Définit la couleur du texte pour ce statut.")
+AddString("fontSize", "Taille de police")
+AddString("fontSizeTooltip", "Définit la taille du texte pour ce statut. Les changements sont appliqués immédiatement à l’aperçu du tracker.")
+AddString("fontStyle", "Style de police")
+AddString("fontStyleTooltip", "Choisit le style du texte pour ce statut.")
+AddString("friendDropdown", "Sélectionner un ami")
+AddString("friendDropdownTooltip", "Sélectionnez un joueur de votre liste d’amis ESO actuelle.")
+AddString("friendImportHint", "Sélectionnez un joueur de votre liste d’amis ESO et ajoutez-le au tracker.")
+AddString("groupByStatus", "Grouper en ligne/hors ligne")
+AddString("groupByStatusTooltip", "Sépare l’affichage en blocs en ligne et hors ligne et utilise l’écart de groupe entre eux.")
+AddString("groupGap", "Espacement des groupes")
+AddString("groupGapTooltip", "Espace supplémentaire entre les blocs en ligne et hors ligne.")
+AddString("guildDropdown", "Sélectionner une guilde")
+AddString("guildDropdownTooltip", "Sélectionnez une de vos guildes comme source d’import.")
+AddString("guildImportHint", "Les membres de guilde ne sont chargés pour le menu déroulant qu’à la demande. Pendant l’actualisation normale, seules les guildes contenant déjà des joueurs suivis sont vérifiées.")
+AddString("guildMemberDropdown", "Sélectionner un membre de guilde")
+AddString("guildMemberDropdownTooltip", "Sélectionnez un membre de la guilde choisie.")
+AddString("invalidName", "Veuillez saisir un nom valide.")
+AddString("libAddonMenuMissing", "LibAddonMenu-2.0 est manquant. Veuillez installer ou mettre à jour la bibliothèque requise.")
+AddString("layout", "Disposition")
+AddString("layoutHorizontal", "Horizontale")
+AddString("layoutTooltip", "Choisissez si les noms des joueurs sont affichés verticalement ou horizontalement.")
+AddString("layoutVertical", "Verticale")
+AddString("locationRefreshSeconds", "Intervalle d’actualisation du lieu")
+AddString("locationRefreshSecondsTooltip", "Définit la fréquence d’actualisation des lieux lorsque l’affichage du lieu est activé. Des valeurs plus basses mettent les zones à jour plus vite, mais peuvent augmenter les vérifications de listes. Minimum 30 secondes.")
+AddString("manualImportWarning", "Remarque : l’import manuel attend un @NomDeCompte. L’addon essaiera de trouver ce compte dans votre liste d’amis et vos guildes. Le statut en ligne ne peut être détecté de manière fiable que si cela réussit. Sinon, l’entrée reste une solution de secours préparée.")
+AddString("manualPlayer", "Ajouter un joueur manuellement")
+AddString("manualPlayerTooltip", "Entrez un nom de compte au format @NomDeCompte. Les noms de personnage ne sont pas pris en charge ici.")
+AddString("nameMode", "Nom affiché")
+AddString("nameModeTooltip", "Choisissez d’afficher le nom de compte, le nom de personnage ou une combinaison. Les noms de personnage ne sont disponibles que si ESO les fournit via la liste d’amis ou la liste de guilde.")
+AddString("noTrackedPlayers", "Aucun joueur n’est encore dans la liste du tracker.")
+AddString("none", "Aucun")
+AddString("normal", "Normal")
+AddString("offline", "Hors ligne")
+AddString("online", "En ligne")
+AddString("padding", "Marge intérieure")
+AddString("paddingTooltip", "Espace entre le cadre de la fenêtre et les lignes de joueurs.")
+AddString("refreshDropdowns", "Actualiser les listes")
+AddString("refreshDropdownsTooltip", "Recharge la liste d’amis, la sélection de guilde et la liste du tracker pour les menus déroulants.")
+AddString("refreshGuildMembers", "Actualiser les membres de guilde")
+AddString("refreshGuildMembersTooltip", "Recharge la liste des membres de la guilde sélectionnée pour le menu déroulant.")
+AddString("refreshSeconds", "Intervalle d’actualisation")
+AddString("refreshSecondsTooltip", "Définit la fréquence de rafraîchissement du statut en ligne/hors ligne comme vérification de sécurité. Les événements de statut peuvent encore mettre la liste à jour plus tôt.")
+AddString("reloadHint", "Si votre liste d’amis a beaucoup changé, rechargez l’interface pour actualiser entièrement les listes : /reloadui")
+AddString("removePlayer", "Retirer un joueur")
+AddString("removePlayerTooltip", "Sélectionnez une entrée existante du tracker.")
+AddString("removeSelectedPlayer", "Retirer le joueur sélectionné")
+AddString("removeSelectedPlayerTooltip", "Retire le joueur sélectionné de la liste du tracker.")
+AddString("removed", "retiré")
+AddString("resetPosition", "Réinitialiser la position")
+AddString("resetPositionTooltip", "Replace la fenêtre au centre plus 25 % de la largeur de l’écran.")
+AddString("rowGap", "Espacement des lignes")
+AddString("rowGapTooltip", "Espace entre les lignes de joueurs.")
+AddString("sectionBlink", "Clignotement")
+AddString("sectionDisplay", "Affichage")
+AddString("sectionFriendImport", "Import depuis la liste d’amis")
+AddString("sectionGuildImport", "Import de guilde")
+AddString("sectionManualImport", "Import manuel")
+AddString("sectionOffline", "Joueur hors ligne")
+AddString("sectionOnline", "Joueur en ligne")
+AddString("sectionPlayers", "Liste des joueurs")
+AddString("sectionRemovePlayer", "Retirer un joueur")
+AddString("sectionSound", "Son")
+AddString("settingsDescription", "Affiche les amis sélectionnés et, en option, des membres de guilde dans une petite fenêtre de statut.")
+AddString("settingsPreview", "Afficher l’aperçu dans les paramètres")
+AddString("settingsPreviewTooltip", "Affiche la fenêtre du tracker comme aperçu en direct pendant que les paramètres de NextTry StatusTracker sont ouverts. Elle reste masquée dans les autres menus comme d’habitude.")
+AddString("settingsTitle", "NextTry StatusTracker")
+AddString("showHoverTooltip", "Afficher l’infobulle au survol")
+AddString("showHoverTooltipTooltip", "Affiche des informations compactes avec le @compte, le personnage actuel et le lieu au survol d’un joueur en ligne.")
+AddString("showNotesTooltipTooltip", "Ajoute les notes d’ami ou de guilde à l’infobulle si disponibles. Les notes d’ami sont prioritaires.")
+AddString("showNotesTooltip", "Afficher les notes dans l’infobulle")
+AddString("showLocation", "Afficher la position")
+AddString("showLocationTooltip", "Affiche la zone actuelle derrière les joueurs en ligne lorsque ESO fournit cette information, par exemple @Compte (Raidelorn).")
+AddString("showOnlyOnline", "Afficher uniquement les joueurs en ligne")
+AddString("showOnlyOnlineTooltip", "Masque les joueurs hors ligne et n’affiche que les joueurs détectés en ligne.")
+AddString("sortAlphabetical", "Alphabétique")
+AddString("sortMode", "Tri")
+AddString("sortModeTooltip", "Définit l’ordre de la liste du tracker.")
+AddString("sortOfflineFirst", "Hors ligne d’abord")
+AddString("sortOnlineFirst", "En ligne d’abord")
+AddString("soundEnabled", "Son au changement de statut")
+AddString("soundEnabledTooltip", "Joue éventuellement un son interne de l’interface ESO lorsqu’un joueur change de statut en ligne/hors ligne.")
+AddString("statusBlinkEnabled", "Clignoter au changement de statut")
+AddString("statusBlinkEnabledTooltip", "Joue automatiquement l’effet de clignotement lorsqu’un joueur suivi passe en ligne ou hors ligne.")
+AddString("statusSound", "Son de changement de statut")
+AddString("statusSoundTooltip", "Sélectionne un son interne ESO depuis la table SOUNDS.")
+AddString("testBlink", "Tester le clignotement")
+AddString("testBlinkTooltip", "Joue l’effet de clignotement une fois pour l’affichage actuel sans changer de statut.")
+AddString("testSound", "Tester le son")
+AddString("testSoundTooltip", "Joue une fois le son actuellement sélectionné.")
+AddString("tooltipNoteHeader", "Note :")
+AddString("trackedPlayers", "Joueurs actuellement suivis")
+AddString("unknown", "Inconnu")
+AddString("unlockUi", "Déverrouiller l’interface")
+AddString("unlockUiTooltip", "Si activé, les éléments propres à cet add-on peuvent être déplacés. Une bordure discrète indique l’état déverrouillé.")
+AddString("unlockedBorderColor", "Couleur de bordure déverrouillée")
+AddString("unlockedBorderColorTooltip", "Couleur de bordure discrète lorsque l’interface de l’add-on est déverrouillée.")
+AddString("windowAnchor", "Point d’ancrage de la fenêtre")
+AddString("windowAnchorTooltip", "Détermine comment la largeur de la fenêtre augmente lorsque les noms sont plus longs. Gauche garde le bord gauche fixe, droite garde le bord droit fixe, centre grandit des deux côtés.")
+AddString("windowBackgroundColor", "Couleur de fond de la fenêtre")
+AddString("windowBackgroundColorTooltip", "Couleur de fond de toute la fenêtre du tracker, transparence incluse.")
+AddString("windowBorderColor", "Couleur de bordure de la fenêtre")
+AddString("windowBorderColorTooltip", "Couleur de bordure verrouillée, transparence incluse.")
+AddString("windowVisible", "Afficher la fenêtre du tracker")
+AddString("windowVisibleTooltip", "Affiche ou masque uniquement la fenêtre du tracker. L’add-on reste actif et les paramètres sont conservés.")

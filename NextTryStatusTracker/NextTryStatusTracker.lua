@@ -2,13 +2,16 @@ NextTryStatusTracker = NextTryStatusTracker or {}
 local NTST = NextTryStatusTracker
 
 NTST.name = "NextTryStatusTracker"
-NTST.version = "1.0.2"
+NTST.version = "1.1.0"
 NTST.savedVariablesName = "NextTryStatusTrackerSavedVariables"
+NTST.savedVariablesVersion = 1
 
 local em = EVENT_MANAGER
+local EVENT_REFRESH_DELAY_MS = 1000
+local FAST_REFRESH_DELAY_MS = 100
 
 function NTST.CopyColor(c)
-    c = c or { r = 1, g = 1, b = 1, a = 1 }
+    if not c then return { r = 1, g = 1, b = 1, a = 1 } end
     return { r = c.r or 1, g = c.g or 1, b = c.b or 1, a = c.a or 1 }
 end
 
@@ -17,16 +20,23 @@ NTST.defaults = {
     visible = true,
     uiUnlocked = false,
     settingsPreview = true,
+    showInSettings = true,
     layout = "vertical",
     nameMode = "account",
     sortMode = "alphabetical",
     groupByStatus = false,
     showOnlyOnline = false,
+    showLocation = true,
+    showHoverTooltip = true,
+    showNotesTooltip = true,
+    locationRefreshSeconds = 60,
+    windowAnchor = "left",
     refreshSeconds = 60,
+    statusBlinkEnabled = true,
     blinkCount = 5,
     blinkPhaseMs = 500,
     blinkFontColor = { r = 0, g = 0, b = 0, a = 1 },
-    blinkBackgroundColor = { r = 1, g = 0.55, b = 0, a = 1 },
+    blinkBackgroundColor = { r = 1, g = 0.76, b = 0.50, a = 1 },
     soundEnabled = false,
     statusSound = "QUEST_ACCEPTED",
     selectedFriend = "",
@@ -39,9 +49,9 @@ NTST.defaults = {
     players = {},
     playerSources = {},
     display = {
-        padding = 4,
-        rowGap = 4,
-        groupGap = 12,
+        padding = 0,
+        rowGap = 1,
+        groupGap = 10,
         backgroundColor = { r = 0, g = 0, b = 0, a = 0 },
         borderColor = { r = 1, g = 1, b = 1, a = 0 },
         unlockedBorderColor = { r = 1, g = 1, b = 1, a = 0.45 },
@@ -64,19 +74,18 @@ NTST.defaults = {
 }
 
 local function L(key)
-    local lang = GetCVar and GetCVar("language.2") or "en"
-    if lang ~= "de" and lang ~= "en" and lang ~= "fr" and lang ~= "es" and lang ~= "ru" and lang ~= "zh" then lang = "en" end
-    local selected = NextTryStatusTracker_Lang and NextTryStatusTracker_Lang[lang]
-    local fallback = NextTryStatusTracker_Lang and NextTryStatusTracker_Lang.en
-    if selected and selected[key] then return selected[key] end
-    if fallback and fallback[key] then return fallback[key] end
+    local id = NTST.Strings and NTST.Strings[key]
+    if id and GetString then
+        local text = GetString(id)
+        if text and text ~= "" then return text end
+    end
     return key
 end
 NTST.L = L
 
 local function msg(text)
-    if CHAT_SYSTEM then
-        CHAT_SYSTEM:AddMessage(string.format("|cFFE000[%s]|r %s", NTST.name, text))
+    if NextTryShared and NextTryShared.Chat and NextTryShared.Chat.Print then
+        NextTryShared.Chat.Print(NTST.name, text, "FFE000")
     end
 end
 NTST.Msg = msg
@@ -101,7 +110,7 @@ end
 function NTST.NormalizeDisplayName(name)
     name = NTST.CleanPlayerText(name)
     if not name or name == L("none") then return nil end
-    if not string.match(name, "^@") then name = "@" .. name end
+    if not string.match(name, "^@") then return nil end
     return name
 end
 
@@ -142,47 +151,51 @@ function NTST:GetFriendListData()
     local friends = {}
     local byDisplayName = {}
 
-    if FRIENDS_LIST_MANAGER and FRIENDS_LIST_MANAGER.GetMasterList then
-        local ok, masterList = pcall(function() return FRIENDS_LIST_MANAGER:GetMasterList() end)
-        if ok and type(masterList) == "table" then
-            for _, friend in ipairs(masterList) do
-                local displayName = self.CleanPlayerText(friend.displayName or friend.name or friend.formattedDisplayName)
-                if displayName then
-                    local status = friend.status
-                    local data = {
-                        displayName = displayName,
-                        characterName = self.CleanPlayerText(friend.characterName or friend.formattedCharacterName or friend.rawCharacterName),
-                        status = status,
-                        online = friend.online or (status and status ~= PLAYER_STATUS_OFFLINE) or false,
-                        source = "friend",
-                    }
-                    byDisplayName[self.NormalizeName(displayName)] = data
-                    friends[#friends + 1] = data
-                end
-            end
+    local function addOrMerge(data)
+        if not data or not data.displayName then return end
+        local key = self.NormalizeName(data.displayName)
+        if not key then return end
+
+        local existing = byDisplayName[key]
+        if existing then
+            existing.characterName = existing.characterName or data.characterName
+            existing.zoneName = existing.zoneName or data.zoneName
+            existing.note = existing.note or data.note
+            if existing.status == nil and data.status ~= nil then existing.status = data.status end
+            if existing.online == nil and data.online ~= nil then existing.online = data.online end
+            return
         end
+
+        if data.online == nil then data.online = false end
+        byDisplayName[key] = data
+        friends[#friends + 1] = data
     end
 
-    if #friends == 0 and GetNumFriends and GetFriendInfo then
+    -- Prefer the direct friend API because GetFriendCharacterInfo reliably exposes zoneName.
+    if GetNumFriends and GetFriendInfo then
         for i = 1, GetNumFriends() do
-            local displayName, _, status = GetFriendInfo(i)
-            local hasCharacter, characterName
+            local displayName, note, status = GetFriendInfo(i)
+            local hasCharacter, characterName, zoneName
             if GetFriendCharacterInfo then
-                local ok, a, b = pcall(function() return GetFriendCharacterInfo(i) end)
-                if ok then hasCharacter, characterName = a, b end
+                local ok, a, b, c = pcall(function() return GetFriendCharacterInfo(i) end)
+                if ok then hasCharacter, characterName, zoneName = a, b, c end
             end
+
             displayName = self.CleanPlayerText(displayName)
             characterName = self.CleanPlayerText(characterName)
+            zoneName = self.CleanPlayerText(zoneName)
+            note = self.CleanPlayerText(note)
             if displayName then
-                local data = {
+                addOrMerge({
                     displayName = displayName,
                     characterName = hasCharacter and characterName or nil,
+                    zoneName = hasCharacter and zoneName or nil,
+                    note = note,
+                    friendNote = note,
                     status = status,
                     online = status and status ~= PLAYER_STATUS_OFFLINE or false,
                     source = "friend",
-                }
-                byDisplayName[self.NormalizeName(displayName)] = data
-                friends[#friends + 1] = data
+                })
             end
         end
     end
@@ -224,7 +237,7 @@ function NTST:BuildGuildChoices()
         local guildId = GetGuildId(guildIndex)
         local guildName = guildId and GetGuildName(guildId)
         if guildId and guildName and guildName ~= "" then
-            guilds[#guilds + 1] = { name = guildName, id = tostring(guildId) }
+            guilds[#guilds + 1] = { name = guildName, id = guildId }
         end
     end
     sortCaseInsensitive(guilds, function(item) return item.name end)
@@ -237,32 +250,33 @@ end
 
 function NTST:GetGuildMemberData(guildId, memberIndex)
     if not guildId or not memberIndex or not GetGuildMemberInfo then return nil end
-    local ok, a, b, c, d, e = pcall(function() return GetGuildMemberInfo(guildId, memberIndex) end)
+
+    local ok, displayName, note, rankIndex, status, secsSinceLogoff = pcall(function()
+        return GetGuildMemberInfo(guildId, memberIndex)
+    end)
     if not ok then return nil end
 
-    local displayName, status
-    if type(a) == "string" and string.sub(a, 1, 1) == "@" then
-        displayName, status = a, d
-    elseif type(b) == "string" and string.sub(b, 1, 1) == "@" then
-        displayName, status = b, c
-    elseif type(a) == "string" then
-        displayName, status = a, d or c or e
-    end
     displayName = self.CleanPlayerText(displayName)
+    note = self.CleanPlayerText(note)
     if not displayName then return nil end
 
-    local characterName
+    local characterName, zoneName
     if GetGuildMemberCharacterInfo then
-        local okChar, ca, cb = pcall(function() return GetGuildMemberCharacterInfo(guildId, memberIndex) end)
-        if okChar then
-            if type(ca) == "string" then characterName = self.CleanPlayerText(ca)
-            elseif type(cb) == "string" then characterName = self.CleanPlayerText(cb) end
+        local okChar, hasCharacter, charName, zone = pcall(function()
+            return GetGuildMemberCharacterInfo(guildId, memberIndex)
+        end)
+        if okChar and hasCharacter then
+            characterName = self.CleanPlayerText(charName)
+            zoneName = self.CleanPlayerText(zone)
         end
     end
 
     return {
         displayName = displayName,
-        characterName = self.CleanPlayerText(characterName),
+        characterName = characterName,
+        zoneName = zoneName,
+        note = note,
+        guildNote = note,
         status = status,
         online = status and status ~= PLAYER_STATUS_OFFLINE or false,
         source = "guild",
@@ -274,7 +288,6 @@ end
 function NTST:GetGuildMemberList(guildId)
     local members = {}
     if not guildId or guildId == "" or not GetNumGuildMembers then return members end
-    guildId = tonumber(guildId) or guildId
     local ok, count = pcall(function() return GetNumGuildMembers(guildId) end)
     if not ok or type(count) ~= "number" then return members end
 
@@ -308,8 +321,9 @@ function NTST:GetRelevantGuildIds()
     local sources = self.sv and self.sv.playerSources or {}
     for _, playerName in ipairs(self:GetTrackedPlayers()) do
         local source = sources[self.NormalizeName(playerName)]
-        if source and source.source == "guild" and source.guildId then
-            relevant[tostring(source.guildId)] = tonumber(source.guildId) or source.guildId
+        local guildId = source and source.source == "guild" and tonumber(source.guildId)
+        if guildId then
+            relevant[guildId] = guildId
         end
     end
     return relevant
@@ -317,58 +331,131 @@ end
 
 function NTST:BuildGuildStatusMap()
     local map = {}
-    for _, guildId in pairs(self:GetRelevantGuildIds()) do
-        local members = self:GetGuildMemberList(guildId)
-        for _, member in ipairs(members) do
-            map[self.NormalizeName(member.displayName)] = member
+    local wantedByGuild = {}
+    local remainingByGuild = {}
+    local sources = self.sv and self.sv.playerSources or {}
+
+    for _, playerName in ipairs(self:GetTrackedPlayers()) do
+        local key = self.NormalizeName(playerName)
+        local source = key and sources[key]
+        if source and source.source == "guild" and source.guildId then
+            local guildId = tonumber(source.guildId)
+            if guildId then
+                wantedByGuild[guildId] = wantedByGuild[guildId] or {}
+                if not wantedByGuild[guildId][key] then
+                    wantedByGuild[guildId][key] = true
+                    remainingByGuild[guildId] = (remainingByGuild[guildId] or 0) + 1
+                end
+            end
         end
     end
+
+    for guildId, wanted in pairs(wantedByGuild) do
+        local ok, count = pcall(function() return GetNumGuildMembers and GetNumGuildMembers(guildId) or 0 end)
+        if ok and type(count) == "number" then
+            for memberIndex = 1, count do
+                if (remainingByGuild[guildId] or 0) <= 0 then break end
+                local member = self:GetGuildMemberData(guildId, memberIndex)
+                local key = member and self.NormalizeName(member.displayName)
+                if key and wanted[key] then
+                    map[key] = member
+                    wanted[key] = nil
+                    remainingByGuild[guildId] = remainingByGuild[guildId] - 1
+                end
+            end
+        end
+    end
+
     return map
 end
 
-function NTST:GetDisplayNameForPlayer(playerName, friendData)
+function NTST:GetDisplayNameForPlayer(playerName, playerData)
     local accountName = playerName or ""
-    local characterName = friendData and friendData.characterName
+    local characterName = playerData and playerData.characterName
     if characterName == "" then characterName = nil end
 
+    local displayName
     if self.sv.nameMode == "character" then
-        return characterName or accountName
+        displayName = characterName or accountName
     elseif self.sv.nameMode == "accountCharacter" then
-        return characterName and (accountName .. " " .. characterName) or accountName
+        displayName = characterName and (accountName .. " " .. characterName) or accountName
     elseif self.sv.nameMode == "characterAccount" then
-        return characterName and (characterName .. " " .. accountName) or accountName
+        displayName = characterName and (characterName .. " " .. accountName) or accountName
+    else
+        displayName = accountName
     end
 
-    return accountName
+    local zoneName = playerData and playerData.online and self.sv.showLocation and self.CleanPlayerText(playerData.zoneName)
+    if zoneName then
+        displayName = displayName .. " (" .. zoneName .. ")"
+    end
+
+    return displayName
 end
 
-function NTST:GetDisplayEntries()
+function NTST:GetDisplayEntries(includeFiltered)
     local _, friendMap = self:GetFriendListData()
     local guildMap = self:BuildGuildStatusMap()
-    local entries = {}
+    self.displayEntries = self.displayEntries or {}
+    if ZO_ClearTable then
+        ZO_ClearTable(self.displayEntries)
+    else
+        for key in pairs(self.displayEntries) do self.displayEntries[key] = nil end
+    end
+    local entries = self.displayEntries
 
     for _, playerName in ipairs(self:GetTrackedPlayers()) do
         local key = self.NormalizeName(playerName)
         local sourceData = self.sv.playerSources and self.sv.playerSources[key]
-        local playerData = friendMap[key] or guildMap[key]
+        local friendData = friendMap[key]
+        local guildData = guildMap[key]
+        local playerData = friendData or guildData
+        if friendData and guildData then
+            if not playerData.characterName and guildData.characterName then playerData.characterName = guildData.characterName end
+            if not playerData.zoneName and guildData.zoneName then playerData.zoneName = guildData.zoneName end
+            if guildData.guildNote and not playerData.guildNote then playerData.guildNote = guildData.guildNote end
+            if not playerData.note and guildData.note then playerData.note = guildData.note end
+        end
         if not playerData and sourceData and sourceData.characterName then
-            playerData = { characterName = sourceData.characterName, online = false, source = sourceData.source }
-        elseif playerData and sourceData and not playerData.characterName and sourceData.characterName then
-            playerData.characterName = sourceData.characterName
+            playerData = {
+                characterName = sourceData.characterName,
+                zoneName = sourceData.zoneName,
+                note = sourceData.note,
+                friendNote = sourceData.friendNote,
+                guildNote = sourceData.guildNote,
+                online = false,
+                source = sourceData.source,
+                guildId = sourceData.guildId,
+            }
+        elseif playerData and sourceData then
+            if not playerData.characterName and sourceData.characterName then playerData.characterName = sourceData.characterName end
+            if not playerData.zoneName and sourceData.zoneName then playerData.zoneName = sourceData.zoneName end
+            if not playerData.note and sourceData.note then playerData.note = sourceData.note end
+            if not playerData.friendNote and sourceData.friendNote then playerData.friendNote = sourceData.friendNote end
+            if not playerData.guildNote and sourceData.guildNote then playerData.guildNote = sourceData.guildNote end
+            if not playerData.guildId and sourceData.guildId then playerData.guildId = sourceData.guildId end
         end
         local isOnline = playerData and playerData.online or false
-        if not self.sv.showOnlyOnline or isOnline then
+        local filteredOut = self.sv.showOnlyOnline and not isOnline
+        if includeFiltered or not filteredOut then
             entries[#entries + 1] = {
                 playerName = playerName,
-                friendData = playerData,
+                playerData = playerData,
                 isOnline = isOnline,
                 displayName = self:GetDisplayNameForPlayer(playerName, playerData),
+                filteredOut = filteredOut,
             }
         end
     end
 
     local function alpha(a, b)
-        return zo_strlower(a.displayName or a.playerName or "") < zo_strlower(b.displayName or b.playerName or "")
+        local ad = zo_strlower(a.displayName or "")
+        local bd = zo_strlower(b.displayName or "")
+        if ad ~= bd then return ad < bd end
+        local ap = zo_strlower(a.playerName or "")
+        local bp = zo_strlower(b.playerName or "")
+        if ap ~= bp then return ap < bp end
+        return false
     end
 
     table.sort(entries, function(a, b)
@@ -393,6 +480,48 @@ function NTST:GetDisplayEntries()
     return entries
 end
 
+function NTST:ResolvePlayerSource(name, allowGuildSearch)
+    local normalizedName = self.NormalizeName(name)
+    if not normalizedName then return { source = "manual" } end
+
+    local _, friendMap = self:GetFriendListData()
+    local friend = friendMap and friendMap[normalizedName]
+    if friend then
+        return {
+            source = "friend",
+            characterName = friend.characterName,
+            zoneName = friend.zoneName,
+            note = friend.note,
+            friendNote = friend.friendNote or friend.note,
+        }
+    end
+
+    if allowGuildSearch and GetNumGuilds and GetGuildId and GetNumGuildMembers then
+        for guildIndex = 1, GetNumGuilds() do
+            local guildId = GetGuildId(guildIndex)
+            local ok, count = pcall(function() return GetNumGuildMembers(guildId) end)
+            if guildId and ok and type(count) == "number" then
+                for memberIndex = 1, count do
+                    local member = self:GetGuildMemberData(guildId, memberIndex)
+                    if member and self.NormalizeName(member.displayName) == normalizedName then
+                        return {
+                            source = "guild",
+                            guildId = guildId,
+                            guildName = member.guildName,
+                            characterName = member.characterName,
+                            zoneName = member.zoneName,
+                            note = member.note,
+                            guildNote = member.guildNote or member.note,
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    return { source = "manual" }
+end
+
 function NTST:AddPlayer(name, sourceData)
     name = self.NormalizeDisplayName(name)
     if not name then
@@ -403,8 +532,10 @@ function NTST:AddPlayer(name, sourceData)
         msg(name .. " " .. L("alreadyTracked"))
         return
     end
+
+    sourceData = sourceData or self:ResolvePlayerSource(name, true)
     self.sv.players[#self.sv.players + 1] = name
-    self.sv.playerSources[self.NormalizeName(name)] = sourceData or { source = "manual" }
+    self.sv.playerSources[self.NormalizeName(name)] = sourceData
     self:SortTrackedPlayers()
     self.sv.selectedRemovePlayer = ""
     msg(name .. " " .. L("added"))
@@ -412,20 +543,33 @@ function NTST:AddPlayer(name, sourceData)
     self:RefreshSettingsDropdowns()
 end
 
+function NTST:AddSelectedFriend()
+    local friendName = self.sv.selectedFriend
+    if not friendName or friendName == "" then
+        msg(L("invalidName"))
+        return
+    end
+    self:AddPlayer(friendName, self:ResolvePlayerSource(friendName, false))
+    self.sv.selectedFriend = ""
+end
+
 function NTST:AddSelectedGuildMember()
     local memberName = self.sv.selectedGuildMember
-    local guildId = tonumber(self.sv.selectedGuildId)
-    if not memberName or memberName == "" or not guildId then
+    local guildId = tonumber(self.sv.selectedGuildId) or self.sv.selectedGuildId
+    if not memberName or memberName == "" or not guildId or guildId == "" then
         msg(L("invalidName"))
         return
     end
     local cacheKey = self.NormalizeName(memberName)
-    local cached = self.guildMemberSelectionCache and self.guildMemberSelectionCache[cacheKey]
+    local cached = cacheKey and self.guildMemberSelectionCache and self.guildMemberSelectionCache[cacheKey]
     self:AddPlayer(memberName, {
         source = "guild",
         guildId = guildId,
         guildName = GetGuildName and GetGuildName(guildId) or nil,
         characterName = cached and cached.characterName or self.sv.selectedGuildMemberCharacter,
+        zoneName = cached and cached.zoneName or nil,
+        note = cached and cached.note or nil,
+        guildNote = cached and (cached.guildNote or cached.note) or nil,
     })
     self.sv.selectedGuildMember = ""
     self.sv.selectedGuildMemberCharacter = ""
@@ -443,15 +587,17 @@ function NTST:RemovePlayer(name)
 end
 
 function NTST:SetEnabled(enabled)
-    self.sv.enabled = enabled and true or false
+    -- Kept for SavedVariables/backwards compatibility. NextTry StatusTracker is visual only,
+    -- so the settings UI exposes only the window visibility toggle.
+    self.sv.enabled = true
     self:ApplyVisibility()
-    if self.sv.enabled then self:Refresh(true) end
+    self:Refresh(true)
 end
 
 function NTST:SetVisible(visible)
-    self.sv.visible = visible and true or false
+    self.sv.visible = not not visible
     self:ApplyVisibility()
-    if self.sv.enabled and self.sv.visible then self:Refresh(true) end
+    if self.sv.visible then self:Refresh(true) end
 end
 
 function NTST:ToggleVisible()
@@ -500,16 +646,24 @@ function NTST:ApplyMigrations()
     local sv = self.sv
     local d = self.defaults
 
-    ensureBool(sv, "enabled", d.enabled)
+    sv.enabled = true
     ensureBool(sv, "visible", d.visible)
     ensureBool(sv, "uiUnlocked", d.uiUnlocked)
     ensureBool(sv, "settingsPreview", d.settingsPreview)
+    if type(sv.showInSettings) ~= "boolean" then sv.showInSettings = sv.settingsPreview end
+    sv.settingsPreview = sv.showInSettings
     ensureString(sv, "layout", d.layout)
     ensureString(sv, "nameMode", d.nameMode)
     ensureString(sv, "sortMode", d.sortMode)
     ensureBool(sv, "groupByStatus", d.groupByStatus)
     ensureBool(sv, "showOnlyOnline", d.showOnlyOnline)
+    ensureBool(sv, "showLocation", d.showLocation)
+    ensureBool(sv, "showHoverTooltip", d.showHoverTooltip)
+    ensureBool(sv, "showNotesTooltip", d.showNotesTooltip)
+    ensureNumber(sv, "locationRefreshSeconds", d.locationRefreshSeconds)
+    ensureString(sv, "windowAnchor", d.windowAnchor)
     ensureNumber(sv, "refreshSeconds", d.refreshSeconds)
+    ensureBool(sv, "statusBlinkEnabled", d.statusBlinkEnabled)
     ensureNumber(sv, "blinkCount", d.blinkCount)
     ensureNumber(sv, "blinkPhaseMs", d.blinkPhaseMs)
     ensureTable(sv, "blinkFontColor", d.blinkFontColor)
@@ -517,7 +671,9 @@ function NTST:ApplyMigrations()
     ensureBool(sv, "soundEnabled", d.soundEnabled)
     ensureString(sv, "statusSound", d.statusSound)
     if sv.statusSound == "NEW_NOTIFICATION" then sv.statusSound = d.statusSound end
-    ensureString(sv, "selectedGuildId", d.selectedGuildId)
+    if sv.selectedGuildId ~= "" then
+        sv.selectedGuildId = tonumber(sv.selectedGuildId) or ""
+    end
     ensureString(sv, "selectedGuildMember", d.selectedGuildMember)
     ensureString(sv, "selectedGuildMemberCharacter", d.selectedGuildMemberCharacter)
 
@@ -529,7 +685,13 @@ function NTST:ApplyMigrations()
             sv.playerSources[key] = { source = "manual" }
         end
     end
-    if type(sv.position) == "table" and (type(sv.position.x) ~= "number" or type(sv.position.y) ~= "number") then sv.position = nil end
+    if type(sv.position) == "table" and (type(sv.position.x) ~= "number" or type(sv.position.y) ~= "number") then
+        sv.position = nil
+    elseif type(sv.position) == "table" then
+        if sv.position.anchor ~= "left" and sv.position.anchor ~= "center" and sv.position.anchor ~= "right" then
+            sv.position.anchor = "left"
+        end
+    end
 
     if type(sv.display) ~= "table" then sv.display = {} end
     ensureNumber(sv.display, "padding", d.display.padding)
@@ -558,31 +720,55 @@ function NTST:ApplyMigrations()
     if sv.sortMode ~= "alphabetical" and sv.sortMode ~= "onlineFirst" and sv.sortMode ~= "offlineFirst" then
         sv.sortMode = d.sortMode
     end
+    if sv.windowAnchor ~= "left" and sv.windowAnchor ~= "center" and sv.windowAnchor ~= "right" then
+        sv.windowAnchor = d.windowAnchor
+    end
 
-    sv.dataVersion = 10001
+    sv.dataVersion = 10100
+end
+
+function NTST:ScheduleRefresh(delayMs, initial)
+    self.pendingRefreshInitial = self.pendingRefreshInitial or initial
+    if self.refreshScheduled then return end
+    self.refreshScheduled = true
+    zo_callLater(function()
+        self.refreshScheduled = false
+        local useInitial = self.pendingRefreshInitial
+        self.pendingRefreshInitial = nil
+        self:Refresh(useInitial)
+    end, delayMs or EVENT_REFRESH_DELAY_MS)
 end
 
 function NTST:RegisterEvents()
-    em:RegisterForEvent(self.name, EVENT_FRIEND_PLAYER_STATUS_CHANGED, function()
-        zo_callLater(function() self:Refresh(false) end, 250)
-    end)
-    if EVENT_GUILD_MEMBER_PLAYER_STATUS_CHANGED then
-        em:RegisterForEvent(self.name, EVENT_GUILD_MEMBER_PLAYER_STATUS_CHANGED, function()
-            zo_callLater(function() self:Refresh(false) end, 250)
-        end)
-    end
+    local function schedule() self:ScheduleRefresh(EVENT_REFRESH_DELAY_MS, false) end
+
+    em:RegisterForEvent(self.name, EVENT_FRIEND_PLAYER_STATUS_CHANGED, schedule)
+    em:RegisterForEvent(self.name, EVENT_GUILD_MEMBER_PLAYER_STATUS_CHANGED, schedule)
+
     self:UpdateRefreshInterval()
+    self:UpdateLocationRefreshInterval()
 end
 
 function NTST:UpdateRefreshInterval()
     em:UnregisterForUpdate(self.name .. "Refresh")
     em:RegisterForUpdate(self.name .. "Refresh", self.sv.refreshSeconds * 1000, function()
-        self:Refresh(false)
+        self:ScheduleRefresh(FAST_REFRESH_DELAY_MS, false)
+    end)
+end
+
+function NTST:UpdateLocationRefreshInterval()
+    em:UnregisterForUpdate(self.name .. "LocationRefresh")
+    if not self.sv or not self.sv.showLocation then return end
+    local seconds = math.max(30, tonumber(self.sv.locationRefreshSeconds) or self.defaults.locationRefreshSeconds)
+    em:RegisterForUpdate(self.name .. "LocationRefresh", seconds * 1000, function()
+        self:ScheduleRefresh(FAST_REFRESH_DELAY_MS, false)
     end)
 end
 
 function NTST:Initialize()
-    self.sv = ZO_SavedVars:NewAccountWide(self.savedVariablesName, 1, nil, self.defaults)
+    local worldName = GetWorldName and GetWorldName() or "UnknownWorld"
+    self.worldName = worldName
+    self.sv = ZO_SavedVars:NewAccountWide(self.savedVariablesName, self.savedVariablesVersion, "Settings", self.defaults, worldName)
     self:ApplyMigrations()
     self:CreateUI()
     self:RegisterSceneVisibilityCallbacks()

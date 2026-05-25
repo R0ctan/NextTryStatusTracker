@@ -1,122 +1,157 @@
-NextTryStatusTracker_Lang = NextTryStatusTracker_Lang or {}
-local language = GetCVar and GetCVar("language.2") or "en"
-if language == "ru" and ZO_CreateStringId then
-    ZO_CreateStringId("SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER", "NextTry StatusTracker")
-    ZO_CreateStringId("SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE", "Показать/скрыть NextTry StatusTracker")
+NextTryStatusTracker = NextTryStatusTracker or {}
+NextTryStatusTracker.Strings = NextTryStatusTracker.Strings or {}
+
+local function AddString(key, value)
+    local stringId = "NEXTTRYSTATUSTRACKER_" .. key
+    local id = _G[stringId]
+    if id and SafeAddString then
+        SafeAddString(id, value, 2)
+    end
 end
 
-NextTryStatusTracker_Lang.ru = {
-    addonName = "NextTry StatusTracker",
-    settingsTitle = "NextTry StatusTracker",
-    settingsDescription = "Показывает выбранных друзей и, при необходимости, членов гильдий в небольшом окне статуса.",
-    addonEnabled = "Включить аддон",
-    addonEnabledTooltip = "Включает или отключает аддон. Настройки сохраняются.",
-    windowVisible = "Показывать окно трекера",
-    windowVisibleTooltip = "Показывает или скрывает только окно трекера. Аддон остаётся активным, настройки сохраняются.",
-    settingsPreview = "Показывать предпросмотр в настройках",
-    settingsPreviewTooltip = "Показывает окно трекера как живой предпросмотр, пока открыты настройки NextTry StatusTracker. В других меню оно остаётся скрытым как обычно.",
-    sectionDisplay = "Отображение",
-    unlockUi = "Разблокировать интерфейс",
-    unlockUiTooltip = "Если включено, элементы интерфейса этого аддона можно перемещать. Ненавязчивая рамка показывает разблокированное состояние.",
-    layout = "Расположение",
-    layoutTooltip = "Выберите, как показывать имена игроков: вертикально или горизонтально.",
-    layoutVertical = "Вертикально",
-    layoutHorizontal = "Горизонтально",
-    nameMode = "Отображаемое имя",
-    nameModeTooltip = "Выберите, показывать имя аккаунта, имя персонажа или комбинацию. Имена персонажей доступны только тогда, когда ESO предоставляет их из списка друзей или гильдии.",
-    accountName = "Имя аккаунта @",
-    characterName = "Имя персонажа",
-    accountCharacterName = "@Аккаунт Персонаж",
-    characterAccountName = "Персонаж @Аккаунт",
-    sortMode = "Сортировка",
-    sortModeTooltip = "Задаёт порядок списка трекера.",
-    sortAlphabetical = "По алфавиту",
-    sortOnlineFirst = "Сначала в сети",
-    sortOfflineFirst = "Сначала не в сети",
-    groupByStatus = "Группировать в сети/не в сети",
-    groupByStatusTooltip = "Разделяет список на блоки игроков в сети и не в сети и использует промежуток между группами.",
-    showOnlyOnline = "Показывать только игроков в сети",
-    showOnlyOnlineTooltip = "Скрывает игроков не в сети и показывает только тех, кто сейчас определён как находящийся в сети.",
-    padding = "Внутренний отступ",
-    paddingTooltip = "Расстояние между рамкой окна и строками игроков.",
-    rowGap = "Интервал между строками",
-    rowGapTooltip = "Расстояние между отдельными строками игроков.",
-    groupGap = "Интервал между группами",
-    groupGapTooltip = "Дополнительное расстояние между блоками в сети и не в сети.",
-    borderSize = "Размер рамки",
-    borderSizeTooltip = "Размер рамки окна. При разблокированном интерфейсе показывается минимум 2 пикселя.",
-    windowBackgroundColor = "Цвет фона окна",
-    windowBackgroundColorTooltip = "Цвет фона всего окна трекера, включая прозрачность.",
-    windowBorderColor = "Цвет рамки окна",
-    windowBorderColorTooltip = "Цвет рамки в заблокированном состоянии, включая прозрачность.",
-    unlockedBorderColor = "Цвет рамки при разблокировке",
-    unlockedBorderColorTooltip = "Ненавязчивый цвет рамки, когда интерфейс аддона разблокирован.",
-    refreshSeconds = "Интервал обновления",
-    resetPosition = "Сбросить позицию",
-    resetPositionTooltip = "Перемещает окно в центр плюс 25 % ширины экрана.",
-    sectionBlink = "Мигание",
-    blinkCount = "Миганий при смене статуса",
-    blinkCountTooltip = "Задаёт, сколько раз проигрывается эффект мигания, когда игрок меняет статус в сети/не в сети. 0 отключает эффект.",
-    blinkPhaseMs = "Длительность фазы мигания (мс)",
-    blinkPhaseMsTooltip = "Длительность одной фазы в миллисекундах. Последовательность: старое отображение, мигающее отображение, повтор, затем финальный статус.",
-    blinkFontColor = "Цвет текста при мигании",
-    blinkFontColorTooltip = "Цвет текста во время мигающего отображения.",
-    blinkBackgroundColor = "Цвет фона при мигании",
-    blinkBackgroundColorTooltip = "Цвет фона во время мигающего отображения.",
-    testBlink = "Проверить мигание",
-    testBlinkTooltip = "Однократно запускает эффект мигания для текущего отображения без изменения статуса.",
-    sectionSound = "Звук",
-    soundEnabled = "Звук при смене статуса",
-    soundEnabledTooltip = "По желанию воспроизводит внутренний звук интерфейса ESO, когда игрок меняет статус в сети/не в сети.",
-    statusSound = "Звук смены статуса",
-    statusSoundTooltip = "Выбирает внутренний звук ESO из таблицы SOUNDS.",
-    testSound = "Проверить звук",
-    testSoundTooltip = "Однократно воспроизводит выбранный звук.",
-    sectionOffline = "Игрок не в сети",
-    sectionOnline = "Игрок в сети",
-    fontSize = "Размер шрифта",
-    fontColor = "Цвет текста",
-    backgroundColor = "Цвет фона",
-    fontStyle = "Стиль шрифта",
-    normal = "Обычный",
-    bold = "Жирный",
-    sectionPlayers = "Список игроков",
-    refreshDropdowns = "Обновить списки",
-    refreshDropdownsTooltip = "Перезагружает список друзей, выбор гильдии и список трекера для выпадающих меню.",
-    sectionFriendImport = "Импорт из списка друзей",
-    friendImportHint = "Выберите игрока из списка друзей ESO и добавьте его в трекер.",
-    friendDropdown = "Выбрать друга",
-    friendDropdownTooltip = "Выберите игрока из текущего списка друзей ESO.",
-    addSelectedFriend = "Добавить выбранного друга",
-    addSelectedFriendTooltip = "Добавляет выбранного друга в список трекера.",
-    sectionGuildImport = "Импорт из гильдии",
-    guildImportHint = "Члены гильдии загружаются для выпадающего меню только по запросу. При обычном обновлении проверяются только гильдии, в которых уже есть отслеживаемые игроки.",
-    guildDropdown = "Выбрать гильдию",
-    guildDropdownTooltip = "Выберите одну из своих гильдий как источник импорта.",
-    refreshGuildMembers = "Обновить членов гильдии",
-    refreshGuildMembersTooltip = "Перезагружает список членов выбранной гильдии для выпадающего меню.",
-    guildMemberDropdown = "Выбрать члена гильдии",
-    guildMemberDropdownTooltip = "Выберите члена выбранной гильдии.",
-    addSelectedGuildMember = "Добавить выбранного члена гильдии",
-    addSelectedGuildMemberTooltip = "Добавляет выбранного члена гильдии в трекер и сохраняет исходную гильдию для дальнейших проверок статуса.",
-    sectionManualImport = "Ручной импорт",
-    manualImportWarning = "Примечание: онлайн-статус можно определить только если игрок найден в списке друзей или в одной из ваших гильдий. Ручной ввод в основном полезен как резервный вариант или подготовка.",
-    manualPlayer = "Добавить игрока вручную",
-    manualPlayerTooltip = "Введите имя аккаунта, желательно в формате @ИмяАккаунта.",
-    addManualPlayer = "Добавить игрока вручную",
-    sectionRemovePlayer = "Удалить игрока",
-    removePlayer = "Удалить игрока",
-    removePlayerTooltip = "Выберите существующую запись трекера.",
-    removeSelectedPlayer = "Удалить выбранного игрока",
-    trackedPlayers = "Сейчас отслеживаются",
-    reloadHint = "Если список друзей сильно изменился, перезагрузите интерфейс, чтобы полностью обновить выпадающие меню: /reloadui",
-    none = "Нет",
-    unknown = "Неизвестно",
-    online = "В сети",
-    offline = "Не в сети",
-    added = "добавлен",
-    removed = "удалён",
-    alreadyTracked = "уже отслеживается.",
-    invalidName = "Введите корректное имя.",
-    noTrackedPlayers = "В списке трекера пока нет игроков.",
-}
+if SafeAddString then
+    SafeAddString(SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER, "NextTry StatusTracker", 2)
+    SafeAddString(SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE, "Показать/скрыть NextTry StatusTracker", 2)
+end
+
+AddString("accountCharacterName", "@Аккаунт Персонаж")
+AddString("accountName", "Имя аккаунта @")
+AddString("addManualPlayer", "Добавить игрока вручную")
+AddString("addManualPlayerTooltip", "Добавляет введенное @ИмяАккаунта в список трекера. Имена персонажей для ручного импорта не поддерживаются.")
+AddString("addSelectedFriend", "Добавить выбранного друга")
+AddString("addSelectedFriendTooltip", "Добавляет выбранного друга в список трекера.")
+AddString("addSelectedGuildMember", "Добавить выбранного члена гильдии")
+AddString("addSelectedGuildMemberTooltip", "Добавляет выбранного члена гильдии в трекер и сохраняет исходную гильдию для дальнейших проверок статуса.")
+AddString("added", "добавлен")
+AddString("addonName", "NextTry StatusTracker")
+AddString("alreadyTracked", "уже отслеживается.")
+AddString("anchorCenter", "Центр")
+AddString("anchorLeft", "Левый край")
+AddString("anchorRight", "Правый край")
+AddString("backgroundColor", "Цвет фона")
+AddString("backgroundColorTooltip", "Задает цвет фона строки для этого статуса, включая прозрачность.")
+AddString("blinkBackgroundColor", "Цвет фона при мигании")
+AddString("blinkBackgroundColorTooltip", "Цвет фона во время мигающего отображения.")
+AddString("blinkCount", "Миганий при смене статуса")
+AddString("blinkCountTooltip", "Задаёт, сколько раз проигрывается эффект мигания, когда игрок меняет статус в сети/не в сети. 0 отключает эффект.")
+AddString("blinkFontColor", "Цвет текста при мигании")
+AddString("blinkFontColorTooltip", "Цвет текста во время мигающего отображения.")
+AddString("blinkPhaseMs", "Длительность фазы мигания (мс)")
+AddString("blinkPhaseMsTooltip", "Длительность одной фазы в миллисекундах. Последовательность: старое отображение, мигающее отображение, повтор, затем финальный статус.")
+AddString("bold", "Жирный")
+AddString("borderSize", "Размер рамки")
+AddString("borderSizeTooltip", "Размер рамки окна. При разблокированном интерфейсе показывается минимум 2 пикселя.")
+AddString("characterAccountName", "Персонаж @Аккаунт")
+AddString("characterName", "Имя персонажа")
+AddString("contextWhisper", "Шепот")
+AddString("contextTravelToPlayer", "Переместиться к игроку")
+AddString("contextRemoveFromTracker", "Удалить из трекера")
+AddString("contextInviteGroup", "Пригласить в группу")
+AddString("contextSendMail", "Отправить письмо")
+AddString("contextEditNote", "Изменить заметку")
+AddString("fontColor", "Цвет текста")
+AddString("fontColorTooltip", "Задает цвет текста для этого статуса.")
+AddString("fontSize", "Размер шрифта")
+AddString("fontSizeTooltip", "Задает размер текста для этого статуса. Изменения сразу применяются к предпросмотру трекера.")
+AddString("fontStyle", "Стиль шрифта")
+AddString("fontStyleTooltip", "Выбирает стиль текста для этого статуса.")
+AddString("friendDropdown", "Выбрать друга")
+AddString("friendDropdownTooltip", "Выберите игрока из текущего списка друзей ESO.")
+AddString("friendImportHint", "Выберите игрока из списка друзей ESO и добавьте его в трекер.")
+AddString("groupByStatus", "Группировать в сети/не в сети")
+AddString("groupByStatusTooltip", "Разделяет список на блоки игроков в сети и не в сети и использует промежуток между группами.")
+AddString("groupGap", "Интервал между группами")
+AddString("groupGapTooltip", "Дополнительное расстояние между блоками в сети и не в сети.")
+AddString("guildDropdown", "Выбрать гильдию")
+AddString("guildDropdownTooltip", "Выберите одну из своих гильдий как источник импорта.")
+AddString("guildImportHint", "Члены гильдии загружаются для выпадающего меню только по запросу. При обычном обновлении проверяются только гильдии, в которых уже есть отслеживаемые игроки.")
+AddString("guildMemberDropdown", "Выбрать члена гильдии")
+AddString("guildMemberDropdownTooltip", "Выберите члена выбранной гильдии.")
+AddString("invalidName", "Введите корректное имя.")
+AddString("libAddonMenuMissing", "LibAddonMenu-2.0 отсутствует. Установите или обновите необходимую библиотеку.")
+AddString("layout", "Расположение")
+AddString("layoutHorizontal", "Горизонтально")
+AddString("layoutTooltip", "Выберите, как показывать имена игроков: вертикально или горизонтально.")
+AddString("layoutVertical", "Вертикально")
+AddString("locationRefreshSeconds", "Интервал обновления местоположения")
+AddString("locationRefreshSecondsTooltip", "Как часто обновлять местоположение игроков, если показ местоположения включен. Меньшие значения быстрее обновляют зоны, но могут выполнять больше проверок списков. Минимум 30 секунд.")
+AddString("manualImportWarning", "Примечание: ручной импорт ожидает @ИмяАккаунта. Аддон попытается найти этот аккаунт в списке друзей и гильдиях. Онлайн-статус можно надежно определить только если это удалось. Иначе запись остается подготовленным резервным вариантом.")
+AddString("manualPlayer", "Добавить игрока вручную")
+AddString("manualPlayerTooltip", "Введите имя аккаунта в формате @ИмяАккаунта. Имена персонажей здесь не поддерживаются.")
+AddString("nameMode", "Отображаемое имя")
+AddString("nameModeTooltip", "Выберите, показывать имя аккаунта, имя персонажа или комбинацию. Имена персонажей доступны только тогда, когда ESO предоставляет их из списка друзей или гильдии.")
+AddString("noTrackedPlayers", "В списке трекера пока нет игроков.")
+AddString("none", "Нет")
+AddString("normal", "Обычный")
+AddString("offline", "Не в сети")
+AddString("online", "В сети")
+AddString("padding", "Внутренний отступ")
+AddString("paddingTooltip", "Расстояние между рамкой окна и строками игроков.")
+AddString("refreshDropdowns", "Обновить списки")
+AddString("refreshDropdownsTooltip", "Перезагружает список друзей, выбор гильдии и список трекера для выпадающих меню.")
+AddString("refreshGuildMembers", "Обновить членов гильдии")
+AddString("refreshGuildMembersTooltip", "Перезагружает список членов выбранной гильдии для выпадающего меню.")
+AddString("refreshSeconds", "Интервал обновления")
+AddString("refreshSecondsTooltip", "Задает, как часто трекер обновляет статус онлайн/офлайн для контрольной проверки. События статуса могут обновить список раньше.")
+AddString("reloadHint", "Если список друзей сильно изменился, перезагрузите интерфейс, чтобы полностью обновить выпадающие меню: /reloadui")
+AddString("removePlayer", "Удалить игрока")
+AddString("removePlayerTooltip", "Выберите существующую запись трекера.")
+AddString("removeSelectedPlayer", "Удалить выбранного игрока")
+AddString("removeSelectedPlayerTooltip", "Удаляет выбранного игрока из списка трекера.")
+AddString("removed", "удалён")
+AddString("resetPosition", "Сбросить позицию")
+AddString("resetPositionTooltip", "Перемещает окно в центр плюс 25 % ширины экрана.")
+AddString("rowGap", "Интервал между строками")
+AddString("rowGapTooltip", "Расстояние между отдельными строками игроков.")
+AddString("sectionBlink", "Мигание")
+AddString("sectionDisplay", "Отображение")
+AddString("sectionFriendImport", "Импорт из списка друзей")
+AddString("sectionGuildImport", "Импорт из гильдии")
+AddString("sectionManualImport", "Ручной импорт")
+AddString("sectionOffline", "Игрок не в сети")
+AddString("sectionOnline", "Игрок в сети")
+AddString("sectionPlayers", "Список игроков")
+AddString("sectionRemovePlayer", "Удалить игрока")
+AddString("sectionSound", "Звук")
+AddString("settingsDescription", "Показывает выбранных друзей и, при необходимости, членов гильдий в небольшом окне статуса.")
+AddString("settingsPreview", "Показывать предпросмотр в настройках")
+AddString("settingsPreviewTooltip", "Показывает окно трекера как живой предпросмотр, пока открыты настройки NextTry StatusTracker. В других меню оно остаётся скрытым как обычно.")
+AddString("settingsTitle", "NextTry StatusTracker")
+AddString("showHoverTooltip", "Показывать подсказку при наведении")
+AddString("showHoverTooltipTooltip", "Показывает краткую информацию: @аккаунт, текущий персонаж и местоположение при наведении на игрока онлайн.")
+AddString("showNotesTooltipTooltip", "Добавляет заметки друзей или гильдии во всплывающую подсказку, если они доступны. Заметки друзей имеют приоритет.")
+AddString("showNotesTooltip", "Показывать заметки в подсказке")
+AddString("showLocation", "Показывать местоположение")
+AddString("showLocationTooltip", "Показывает текущую зону после имени игрока онлайн, если ESO предоставляет эту информацию, например @Account (Краглорн).")
+AddString("showOnlyOnline", "Показывать только игроков в сети")
+AddString("showOnlyOnlineTooltip", "Скрывает игроков не в сети и показывает только тех, кто сейчас определён как находящийся в сети.")
+AddString("sortAlphabetical", "По алфавиту")
+AddString("sortMode", "Сортировка")
+AddString("sortModeTooltip", "Задаёт порядок списка трекера.")
+AddString("sortOfflineFirst", "Сначала не в сети")
+AddString("sortOnlineFirst", "Сначала в сети")
+AddString("soundEnabled", "Звук при смене статуса")
+AddString("soundEnabledTooltip", "По желанию воспроизводит внутренний звук интерфейса ESO, когда игрок меняет статус в сети/не в сети.")
+AddString("statusBlinkEnabled", "Мигать при смене статуса")
+AddString("statusBlinkEnabledTooltip", "Автоматически запускает эффект мигания, когда отслеживаемый игрок входит в сеть или выходит из сети.")
+AddString("statusSound", "Звук смены статуса")
+AddString("statusSoundTooltip", "Выбирает внутренний звук ESO из таблицы SOUNDS.")
+AddString("testBlink", "Проверить мигание")
+AddString("testBlinkTooltip", "Однократно запускает эффект мигания для текущего отображения без изменения статуса.")
+AddString("testSound", "Проверить звук")
+AddString("testSoundTooltip", "Однократно воспроизводит выбранный звук.")
+AddString("tooltipNoteHeader", "Заметка:")
+AddString("trackedPlayers", "Сейчас отслеживаются")
+AddString("unknown", "Неизвестно")
+AddString("unlockUi", "Разблокировать интерфейс")
+AddString("unlockUiTooltip", "Если включено, элементы интерфейса этого аддона можно перемещать. Ненавязчивая рамка показывает разблокированное состояние.")
+AddString("unlockedBorderColor", "Цвет рамки при разблокировке")
+AddString("unlockedBorderColorTooltip", "Ненавязчивый цвет рамки, когда интерфейс аддона разблокирован.")
+AddString("windowAnchor", "Якорь окна")
+AddString("windowAnchorTooltip", "Определяет, как окно расширяется при более длинных именах. Слева фиксирует левый край, справа фиксирует правый край, центр расширяет в обе стороны.")
+AddString("windowBackgroundColor", "Цвет фона окна")
+AddString("windowBackgroundColorTooltip", "Цвет фона всего окна трекера, включая прозрачность.")
+AddString("windowBorderColor", "Цвет рамки окна")
+AddString("windowBorderColorTooltip", "Цвет рамки в заблокированном состоянии, включая прозрачность.")
+AddString("windowVisible", "Показывать окно трекера")
+AddString("windowVisibleTooltip", "Показывает или скрывает только окно трекера. Аддон остаётся активным, настройки сохраняются.")

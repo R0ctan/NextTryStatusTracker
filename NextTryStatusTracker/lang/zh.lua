@@ -1,122 +1,157 @@
-NextTryStatusTracker_Lang = NextTryStatusTracker_Lang or {}
-local language = GetCVar and GetCVar("language.2") or "en"
-if language == "zh" and ZO_CreateStringId then
-    ZO_CreateStringId("SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER", "NextTry StatusTracker")
-    ZO_CreateStringId("SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE", "显示/隐藏 NextTry StatusTracker")
+NextTryStatusTracker = NextTryStatusTracker or {}
+NextTryStatusTracker.Strings = NextTryStatusTracker.Strings or {}
+
+local function AddString(key, value)
+    local stringId = "NEXTTRYSTATUSTRACKER_" .. key
+    local id = _G[stringId]
+    if id and SafeAddString then
+        SafeAddString(id, value, 2)
+    end
 end
 
-NextTryStatusTracker_Lang.zh = {
-    addonName = "NextTry StatusTracker",
-    settingsTitle = "NextTry StatusTracker",
-    settingsDescription = "在一个小状态窗口中显示选定的好友，也可显示公会成员。",
-    addonEnabled = "启用插件",
-    addonEnabledTooltip = "启用或禁用插件。设置会保留。",
-    windowVisible = "显示追踪窗口",
-    windowVisibleTooltip = "仅显示或隐藏追踪窗口。插件仍保持启用，设置会保留。",
-    settingsPreview = "在设置中显示预览",
-    settingsPreviewTooltip = "打开 NextTry StatusTracker 设置时，将追踪窗口作为实时预览显示。在其他菜单中仍会照常隐藏。",
-    sectionDisplay = "显示",
-    unlockUi = "解锁界面",
-    unlockUiTooltip = "启用后，可以移动此插件自己的界面元素。解锁状态会用细微边框标记。",
-    layout = "排列方式",
-    layoutTooltip = "选择玩家名称垂直或水平显示。",
-    layoutVertical = "垂直",
-    layoutHorizontal = "水平",
-    nameMode = "显示名称",
-    nameModeTooltip = "选择显示账号名、角色名或组合名称。只有当 ESO 从好友列表或公会名册提供角色名时，角色名才可用。",
-    accountName = "@账号名",
-    characterName = "角色名",
-    accountCharacterName = "@账号 角色",
-    characterAccountName = "角色 @账号",
-    sortMode = "排序",
-    sortModeTooltip = "设置追踪列表的顺序。",
-    sortAlphabetical = "按字母排序",
-    sortOnlineFirst = "在线优先",
-    sortOfflineFirst = "离线优先",
-    groupByStatus = "按在线/离线分组",
-    groupByStatusTooltip = "将显示分为在线和离线区块，并在区块之间使用分组间距。",
-    showOnlyOnline = "仅显示在线玩家",
-    showOnlyOnlineTooltip = "隐藏离线玩家，只显示当前检测为在线的玩家。",
-    padding = "内边距",
-    paddingTooltip = "窗口边框与玩家行之间的距离。",
-    rowGap = "行间距",
-    rowGapTooltip = "各玩家行之间的距离。",
-    groupGap = "分组间距",
-    groupGapTooltip = "在线和离线区块之间的额外距离。",
-    borderSize = "边框大小",
-    borderSizeTooltip = "窗口边框大小。界面解锁时至少显示 2 像素。",
-    windowBackgroundColor = "窗口背景色",
-    windowBackgroundColorTooltip = "整个追踪窗口的背景色，包括透明度。",
-    windowBorderColor = "窗口边框色",
-    windowBorderColorTooltip = "锁定状态下的边框颜色，包括透明度。",
-    unlockedBorderColor = "解锁边框色",
-    unlockedBorderColorTooltip = "插件界面解锁时使用的细微边框颜色。",
-    refreshSeconds = "刷新间隔",
-    resetPosition = "重置位置",
-    resetPositionTooltip = "将窗口移回屏幕中心加 25% 屏幕宽度的位置。",
-    sectionBlink = "闪烁",
-    blinkCount = "状态变化时闪烁次数",
-    blinkCountTooltip = "设置玩家在线/离线状态变化时闪烁效果播放的次数。0 表示禁用闪烁效果。",
-    blinkPhaseMs = "闪烁阶段时长（毫秒）",
-    blinkPhaseMsTooltip = "一个闪烁阶段的持续时间，单位为毫秒。顺序：旧显示，闪烁显示，重复，然后显示最终状态。",
-    blinkFontColor = "闪烁文字颜色",
-    blinkFontColorTooltip = "闪烁显示期间的文字颜色。",
-    blinkBackgroundColor = "闪烁背景颜色",
-    blinkBackgroundColorTooltip = "闪烁显示期间的背景颜色。",
-    testBlink = "测试闪烁",
-    testBlinkTooltip = "对当前追踪显示播放一次闪烁效果，不改变任何状态。",
-    sectionSound = "声音",
-    soundEnabled = "状态变化时播放声音",
-    soundEnabledTooltip = "玩家在线/离线状态变化时，可选择播放 ESO 内部界面音效。",
-    statusSound = "状态变化音效",
-    statusSoundTooltip = "从 SOUNDS 表中选择一个 ESO 内部音效。",
-    testSound = "测试声音",
-    testSoundTooltip = "播放一次当前选择的声音。",
-    sectionOffline = "玩家离线",
-    sectionOnline = "玩家在线",
-    fontSize = "字体大小",
-    fontColor = "文字颜色",
-    backgroundColor = "背景颜色",
-    fontStyle = "字体样式",
-    normal = "普通",
-    bold = "粗体",
-    sectionPlayers = "玩家列表",
-    refreshDropdowns = "刷新下拉列表",
-    refreshDropdownsTooltip = "重新载入好友列表、公会选择和追踪列表，用于下拉菜单。",
-    sectionFriendImport = "从好友列表导入",
-    friendImportHint = "从你的 ESO 好友列表中选择一名玩家并加入追踪列表。",
-    friendDropdown = "选择好友",
-    friendDropdownTooltip = "从当前 ESO 好友列表中选择一名玩家。",
-    addSelectedFriend = "添加所选好友",
-    addSelectedFriendTooltip = "将所选好友添加到追踪列表。",
-    sectionGuildImport = "公会导入",
-    guildImportHint = "公会成员仅在需要时为下拉菜单载入。正常刷新时，只检查已经包含被追踪玩家的公会。",
-    guildDropdown = "选择公会",
-    guildDropdownTooltip = "选择你的一个公会作为导入来源。",
-    refreshGuildMembers = "刷新公会成员",
-    refreshGuildMembersTooltip = "重新载入所选公会的成员列表，用于下拉菜单。",
-    guildMemberDropdown = "选择公会成员",
-    guildMemberDropdownTooltip = "从所选公会中选择一名成员。",
-    addSelectedGuildMember = "添加所选公会成员",
-    addSelectedGuildMemberTooltip = "将所选公会成员添加到追踪列表，并保存来源公会以便之后检查状态。",
-    sectionManualImport = "手动导入",
-    manualImportWarning = "提示：只有当玩家能在你的好友列表或某个公会中找到时，才能检测在线状态。手动输入主要适合作为备用或预先准备。",
-    manualPlayer = "手动添加玩家",
-    manualPlayerTooltip = "输入账号名，推荐格式为 @AccountName。",
-    addManualPlayer = "添加手动玩家",
-    sectionRemovePlayer = "移除玩家",
-    removePlayer = "移除玩家",
-    removePlayerTooltip = "选择一个已有的追踪条目。",
-    removeSelectedPlayer = "移除所选玩家",
-    trackedPlayers = "当前追踪的玩家",
-    reloadHint = "如果你的好友列表变化较大，请重新载入界面以完整刷新下拉菜单：/reloadui",
-    none = "无",
-    unknown = "未知",
-    online = "在线",
-    offline = "离线",
-    added = "已添加",
-    removed = "已移除",
-    alreadyTracked = "已在追踪列表中。",
-    invalidName = "请输入有效名称。",
-    noTrackedPlayers = "追踪列表中还没有玩家。",
-}
+if SafeAddString then
+    SafeAddString(SI_BINDING_CATEGORY_NEXTTRYSTATUSTRACKER, "NextTry StatusTracker", 2)
+    SafeAddString(SI_BINDING_NAME_NEXTTRYSTATUSTRACKER_TOGGLE, "显示/隐藏 NextTry StatusTracker", 2)
+end
+
+AddString("accountCharacterName", "@账号 角色")
+AddString("accountName", "@账号名")
+AddString("addManualPlayer", "添加手动玩家")
+AddString("addManualPlayerTooltip", "将输入的 @AccountName 添加到追踪列表。手动导入不支持角色名。")
+AddString("addSelectedFriend", "添加所选好友")
+AddString("addSelectedFriendTooltip", "将所选好友添加到追踪列表。")
+AddString("addSelectedGuildMember", "添加所选公会成员")
+AddString("addSelectedGuildMemberTooltip", "将所选公会成员添加到追踪列表，并保存来源公会以便之后检查状态。")
+AddString("added", "已添加")
+AddString("addonName", "NextTry StatusTracker")
+AddString("alreadyTracked", "已在追踪列表中。")
+AddString("anchorCenter", "居中")
+AddString("anchorLeft", "左边缘")
+AddString("anchorRight", "右边缘")
+AddString("backgroundColor", "背景颜色")
+AddString("backgroundColorTooltip", "设置此状态的行背景颜色，包括透明度。")
+AddString("blinkBackgroundColor", "闪烁背景颜色")
+AddString("blinkBackgroundColorTooltip", "闪烁显示期间的背景颜色。")
+AddString("blinkCount", "状态变化时闪烁次数")
+AddString("blinkCountTooltip", "设置玩家在线/离线状态变化时闪烁效果播放的次数。0 表示禁用闪烁效果。")
+AddString("blinkFontColor", "闪烁文字颜色")
+AddString("blinkFontColorTooltip", "闪烁显示期间的文字颜色。")
+AddString("blinkPhaseMs", "闪烁阶段时长（毫秒）")
+AddString("blinkPhaseMsTooltip", "一个闪烁阶段的持续时间，单位为毫秒。顺序：旧显示，闪烁显示，重复，然后显示最终状态。")
+AddString("bold", "粗体")
+AddString("borderSize", "边框大小")
+AddString("borderSizeTooltip", "窗口边框大小。界面解锁时至少显示 2 像素。")
+AddString("characterAccountName", "角色 @账号")
+AddString("characterName", "角色名")
+AddString("contextWhisper", "密语")
+AddString("contextTravelToPlayer", "传送到玩家")
+AddString("contextRemoveFromTracker", "从追踪器移除")
+AddString("contextInviteGroup", "邀请入队")
+AddString("contextSendMail", "发送邮件")
+AddString("contextEditNote", "编辑备注")
+AddString("fontColor", "文字颜色")
+AddString("fontColorTooltip", "设置此状态的文字颜色。")
+AddString("fontSize", "字体大小")
+AddString("fontSizeTooltip", "设置此状态的文字大小。更改会立即应用到追踪器预览。")
+AddString("fontStyle", "字体样式")
+AddString("fontStyleTooltip", "选择此状态的文字样式。")
+AddString("friendDropdown", "选择好友")
+AddString("friendDropdownTooltip", "从当前 ESO 好友列表中选择一名玩家。")
+AddString("friendImportHint", "从你的 ESO 好友列表中选择一名玩家并加入追踪列表。")
+AddString("groupByStatus", "按在线/离线分组")
+AddString("groupByStatusTooltip", "将显示分为在线和离线区块，并在区块之间使用分组间距。")
+AddString("groupGap", "分组间距")
+AddString("groupGapTooltip", "在线和离线区块之间的额外距离。")
+AddString("guildDropdown", "选择公会")
+AddString("guildDropdownTooltip", "选择你的一个公会作为导入来源。")
+AddString("guildImportHint", "公会成员仅在需要时为下拉菜单载入。正常刷新时，只检查已经包含被追踪玩家的公会。")
+AddString("guildMemberDropdown", "选择公会成员")
+AddString("guildMemberDropdownTooltip", "从所选公会中选择一名成员。")
+AddString("invalidName", "请输入有效名称。")
+AddString("libAddonMenuMissing", "缺少 LibAddonMenu-2.0。请安装或更新所需库。")
+AddString("layout", "排列方式")
+AddString("layoutHorizontal", "水平")
+AddString("layoutTooltip", "选择玩家名称垂直或水平显示。")
+AddString("layoutVertical", "垂直")
+AddString("locationRefreshSeconds", "位置刷新间隔")
+AddString("locationRefreshSecondsTooltip", "启用位置显示时刷新玩家位置的频率。较低的值会更快更新区域，但可能增加名单检查次数。最低 30 秒。")
+AddString("manualImportWarning", "提示：手动导入需要 @AccountName。插件会尝试在好友列表和公会中查找该账号。只有查找成功时，在线状态才能可靠检测。否则该条目会作为预先准备的备用项保留。")
+AddString("manualPlayer", "手动添加玩家")
+AddString("manualPlayerTooltip", "请输入格式为 @AccountName 的账号名。这里不支持角色名。")
+AddString("nameMode", "显示名称")
+AddString("nameModeTooltip", "选择显示账号名、角色名或组合名称。只有当 ESO 从好友列表或公会名册提供角色名时，角色名才可用。")
+AddString("noTrackedPlayers", "追踪列表中还没有玩家。")
+AddString("none", "无")
+AddString("normal", "普通")
+AddString("offline", "离线")
+AddString("online", "在线")
+AddString("padding", "内边距")
+AddString("paddingTooltip", "窗口边框与玩家行之间的距离。")
+AddString("refreshDropdowns", "刷新下拉列表")
+AddString("refreshDropdownsTooltip", "重新载入好友列表、公会选择和追踪列表，用于下拉菜单。")
+AddString("refreshGuildMembers", "刷新公会成员")
+AddString("refreshGuildMembersTooltip", "重新载入所选公会的成员列表，用于下拉菜单。")
+AddString("refreshSeconds", "刷新间隔")
+AddString("refreshSecondsTooltip", "设置追踪器作为安全检查刷新在线/离线状态的频率。状态事件仍可能更早更新列表。")
+AddString("reloadHint", "如果你的好友列表变化较大，请重新载入界面以完整刷新下拉菜单：/reloadui")
+AddString("removePlayer", "移除玩家")
+AddString("removePlayerTooltip", "选择一个已有的追踪条目。")
+AddString("removeSelectedPlayer", "移除所选玩家")
+AddString("removeSelectedPlayerTooltip", "从追踪列表中移除所选玩家。")
+AddString("removed", "已移除")
+AddString("resetPosition", "重置位置")
+AddString("resetPositionTooltip", "将窗口移回屏幕中心加 25% 屏幕宽度的位置。")
+AddString("rowGap", "行间距")
+AddString("rowGapTooltip", "各玩家行之间的距离。")
+AddString("sectionBlink", "闪烁")
+AddString("sectionDisplay", "显示")
+AddString("sectionFriendImport", "从好友列表导入")
+AddString("sectionGuildImport", "公会导入")
+AddString("sectionManualImport", "手动导入")
+AddString("sectionOffline", "玩家离线")
+AddString("sectionOnline", "玩家在线")
+AddString("sectionPlayers", "玩家列表")
+AddString("sectionRemovePlayer", "移除玩家")
+AddString("sectionSound", "声音")
+AddString("settingsDescription", "在一个小状态窗口中显示选定的好友，也可显示公会成员。")
+AddString("settingsPreview", "在设置中显示预览")
+AddString("settingsPreviewTooltip", "打开 NextTry StatusTracker 设置时，将追踪窗口作为实时预览显示。在其他菜单中仍会照常隐藏。")
+AddString("settingsTitle", "NextTry StatusTracker")
+AddString("showHoverTooltip", "显示悬停提示")
+AddString("showHoverTooltipTooltip", "鼠标悬停在在线玩家上时，显示包含 @账号名、当前角色名和位置的简洁信息。")
+AddString("showNotesTooltipTooltip", "如果可用，将好友或公会备注添加到悬停提示中。优先使用好友备注。")
+AddString("showNotesTooltip", "在悬停提示中显示备注")
+AddString("showLocation", "显示玩家位置")
+AddString("showLocationTooltip", "当 ESO 提供信息时，在在线玩家名称后显示当前区域，例如 @Account (Craglorn)。")
+AddString("showOnlyOnline", "仅显示在线玩家")
+AddString("showOnlyOnlineTooltip", "隐藏离线玩家，只显示当前检测为在线的玩家。")
+AddString("sortAlphabetical", "按字母排序")
+AddString("sortMode", "排序")
+AddString("sortModeTooltip", "设置追踪列表的顺序。")
+AddString("sortOfflineFirst", "离线优先")
+AddString("sortOnlineFirst", "在线优先")
+AddString("soundEnabled", "状态变化时播放声音")
+AddString("soundEnabledTooltip", "玩家在线/离线状态变化时，可选择播放 ESO 内部界面音效。")
+AddString("statusBlinkEnabled", "状态变化时闪烁")
+AddString("statusBlinkEnabledTooltip", "当被追踪的玩家上线或离线时自动播放闪烁效果。")
+AddString("statusSound", "状态变化音效")
+AddString("statusSoundTooltip", "从 SOUNDS 表中选择一个 ESO 内部音效。")
+AddString("testBlink", "测试闪烁")
+AddString("testBlinkTooltip", "对当前追踪显示播放一次闪烁效果，不改变任何状态。")
+AddString("testSound", "测试声音")
+AddString("testSoundTooltip", "播放一次当前选择的声音。")
+AddString("tooltipNoteHeader", "备注：")
+AddString("trackedPlayers", "当前追踪的玩家")
+AddString("unknown", "未知")
+AddString("unlockUi", "解锁界面")
+AddString("unlockUiTooltip", "启用后，可以移动此插件自己的界面元素。解锁状态会用细微边框标记。")
+AddString("unlockedBorderColor", "解锁边框色")
+AddString("unlockedBorderColorTooltip", "插件界面解锁时使用的细微边框颜色。")
+AddString("windowAnchor", "窗口锚点")
+AddString("windowAnchorTooltip", "控制玩家名称变长时窗口宽度的扩展方向。左侧固定左边缘，右侧固定右边缘，居中则向两侧扩展。")
+AddString("windowBackgroundColor", "窗口背景色")
+AddString("windowBackgroundColorTooltip", "整个追踪窗口的背景色，包括透明度。")
+AddString("windowBorderColor", "窗口边框色")
+AddString("windowBorderColorTooltip", "锁定状态下的边框颜色，包括透明度。")
+AddString("windowVisible", "显示追踪窗口")
+AddString("windowVisibleTooltip", "仅显示或隐藏追踪窗口。插件仍保持启用，设置会保留。")

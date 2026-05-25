@@ -65,25 +65,26 @@ local function addStyleControls(controls, state, headerKey)
     local styleValues = { "normal", "bold" }
 
     if headerKey then addControl(controls, { type = "header", name = L(headerKey) }) end
-    addSlider(controls, "fontSize", nil, 8, 32, 1,
+    addSlider(controls, "fontSize", "fontSizeTooltip", 8, 32, 1,
         function() return styles.fontSize end,
-        function(value) styles.fontSize = value; NTST:Refresh(true) end,
+        function(value) styles.fontSize = value; NTST:UpdateFontCache(); NTST:Refresh(true) end,
         defaults.fontSize)
     addControl(controls, {
         type = "dropdown",
         name = L("fontStyle"),
+        tooltip = L("fontStyleTooltip"),
         choices = styleChoices,
         choicesValues = styleValues,
         getFunc = function() return styles.fontStyle end,
-        setFunc = function(value) styles.fontStyle = value; NTST:Refresh(true) end,
+        setFunc = function(value) styles.fontStyle = value; NTST:UpdateFontCache(); NTST:Refresh(true) end,
         default = defaults.fontStyle,
     })
-    addColor(controls, "fontColor", nil,
+    addColor(controls, "fontColor", "fontColorTooltip",
         function() return styles.fontColor end,
         function(color) styles.fontColor = color end,
         defaults.fontColor,
         true)
-    addColor(controls, "backgroundColor", nil,
+    addColor(controls, "backgroundColor", "backgroundColorTooltip",
         function() return styles.backgroundColor end,
         function(color) styles.backgroundColor = color end,
         defaults.backgroundColor,
@@ -171,21 +172,16 @@ function NTST:IsOwnSettingsPanel(panel)
 end
 
 function NTST:RegisterSettingsPreviewCallbacks()
-    if self.settingsPreviewCallbacksRegistered or not CALLBACK_MANAGER then return end
-    self.settingsPreviewCallbacksRegistered = true
+    if NextTryShared and NextTryShared.WindowVisibility and NextTryShared.WindowVisibility.RegisterLAMPreviewCallbacks then
+        NextTryShared.WindowVisibility.RegisterLAMPreviewCallbacks(
+            self,
+            function(panel) return self:IsOwnSettingsPanel(panel) end,
+            function(active) self:SetSettingsPreview(active) end
+        )
+    end
 
-    CALLBACK_MANAGER:RegisterCallback("LAM-PanelOpened", function(panel)
-        if self:IsOwnSettingsPanel(panel) then
-            self:SetSettingsPreview(true)
-        end
-    end)
-
-    CALLBACK_MANAGER:RegisterCallback("LAM-PanelClosed", function(panel)
-        if self:IsOwnSettingsPanel(panel) then
-            self:SetSettingsPreview(false)
-        end
-    end)
-
+    if self.settingsControlsCallbackRegistered or not CALLBACK_MANAGER then return end
+    self.settingsControlsCallbackRegistered = true
     CALLBACK_MANAGER:RegisterCallback("LAM-PanelControlsCreated", function(panel)
         if self:IsOwnSettingsPanel(panel) then
             self:RefreshSettingsDropdowns()
@@ -199,7 +195,7 @@ end
 function NTST:CreateSettings()
     local LAM = LibAddonMenu2 or (LibStub and LibStub("LibAddonMenu-2.0"))
     if not LAM then
-        msg("LibAddonMenu-2.0 missing")
+        msg(L("libAddonMenuMissing"))
         return
     end
 
@@ -222,6 +218,8 @@ function NTST:CreateSettings()
     local nameValues = { "account", "character", "accountCharacter", "characterAccount" }
     local sortChoices = { L("sortAlphabetical"), L("sortOnlineFirst"), L("sortOfflineFirst") }
     local sortValues = { "alphabetical", "onlineFirst", "offlineFirst" }
+    local anchorChoices = { L("anchorLeft"), L("anchorCenter"), L("anchorRight") }
+    local anchorValues = { "left", "center", "right" }
     local friendChoices, friendValues = sanitizeDropdownChoices(self:BuildFriendChoices())
     local guildChoices, guildValues = sanitizeDropdownChoices(self:BuildGuildChoices())
     local guildMemberChoices, guildMemberValues = sanitizeDropdownChoices(self:BuildGuildMemberChoices(self.sv.selectedGuildId))
@@ -230,14 +228,6 @@ function NTST:CreateSettings()
     local controls = {}
 
     addControl(controls, { type = "description", text = L("settingsDescription") })
-    addControl(controls, {
-        type = "checkbox",
-        name = L("addonEnabled"),
-        tooltip = L("addonEnabledTooltip"),
-        getFunc = function() return self.sv.enabled end,
-        setFunc = function(value) self:SetEnabled(value) end,
-        default = self.defaults.enabled,
-    })
     addControl(controls, {
         type = "checkbox",
         name = L("windowVisible"),
@@ -253,6 +243,7 @@ function NTST:CreateSettings()
         getFunc = function() return self.sv.settingsPreview end,
         setFunc = function(value)
             self.sv.settingsPreview = value and true or false
+            self.sv.showInSettings = self.sv.settingsPreview
             self:ApplyVisibility()
             self:Refresh(true)
         end,
@@ -277,6 +268,16 @@ function NTST:CreateSettings()
         getFunc = function() return self.sv.layout end,
         setFunc = function(value) self.sv.layout = value; self:Refresh(true) end,
         default = self.defaults.layout,
+    })
+    addControl(displayControls, {
+        type = "dropdown",
+        name = L("windowAnchor"),
+        tooltip = L("windowAnchorTooltip"),
+        choices = anchorChoices,
+        choicesValues = anchorValues,
+        getFunc = function() return self.sv.windowAnchor end,
+        setFunc = function(value) self.sv.windowAnchor = value or "left"; self:SavePosition(); self:Refresh(true) end,
+        default = self.defaults.windowAnchor,
     })
     addControl(displayControls, {
         type = "dropdown",
@@ -314,10 +315,34 @@ function NTST:CreateSettings()
         setFunc = function(value) self.sv.showOnlyOnline = value and true or false; self:Refresh(true) end,
         default = self.defaults.showOnlyOnline,
     })
-    addSlider(displayControls, "padding", "paddingTooltip", 0, 30, 1,
-        function() return self.sv.display.padding end,
-        function(value) self.sv.display.padding = value; self:Refresh(true) end,
-        self.defaults.display.padding)
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("showLocation"),
+        tooltip = L("showLocationTooltip"),
+        getFunc = function() return self.sv.showLocation end,
+        setFunc = function(value) self.sv.showLocation = value and true or false; self:UpdateLocationRefreshInterval(); self:Refresh(true) end,
+        default = self.defaults.showLocation,
+    })
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("showHoverTooltip"),
+        tooltip = L("showHoverTooltipTooltip"),
+        getFunc = function() return self.sv.showHoverTooltip end,
+        setFunc = function(value) self.sv.showHoverTooltip = value and true or false; self:ApplyMouseStateToRows(); self:Refresh(true) end,
+        default = self.defaults.showHoverTooltip,
+    })
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("showNotesTooltip"),
+        tooltip = L("showNotesTooltipTooltip"),
+        getFunc = function() return self.sv.showNotesTooltip end,
+        setFunc = function(value) self.sv.showNotesTooltip = value and true or false; self:Refresh(true) end,
+        default = self.defaults.showNotesTooltip,
+    })
+    addSlider(displayControls, "locationRefreshSeconds", "locationRefreshSecondsTooltip", 30, 300, 5,
+        function() return self.sv.locationRefreshSeconds end,
+        function(value) self.sv.locationRefreshSeconds = value; self:UpdateLocationRefreshInterval() end,
+        self.defaults.locationRefreshSeconds)
     addSlider(displayControls, "rowGap", "rowGapTooltip", 0, 30, 1,
         function() return self.sv.display.rowGap end,
         function(value) self.sv.display.rowGap = value; self:Refresh(true) end,
@@ -326,10 +351,6 @@ function NTST:CreateSettings()
         function() return self.sv.display.groupGap end,
         function(value) self.sv.display.groupGap = value; self:Refresh(true) end,
         self.defaults.display.groupGap)
-    addSlider(displayControls, "borderSize", "borderSizeTooltip", 0, 8, 1,
-        function() return self.sv.display.borderSize end,
-        function(value) self.sv.display.borderSize = value; self:Refresh(true) end,
-        self.defaults.display.borderSize)
     addColor(displayControls, "windowBackgroundColor", "windowBackgroundColorTooltip",
         function() return self.sv.display.backgroundColor end,
         function(color) self.sv.display.backgroundColor = color end,
@@ -345,7 +366,7 @@ function NTST:CreateSettings()
         function(color) self.sv.display.unlockedBorderColor = color end,
         self.defaults.display.unlockedBorderColor,
         true)
-    addSlider(displayControls, "refreshSeconds", nil, 10, 300, 5,
+    addSlider(displayControls, "refreshSeconds", "refreshSecondsTooltip", 10, 300, 5,
         function() return self.sv.refreshSeconds end,
         function(value) self.sv.refreshSeconds = value; self:UpdateRefreshInterval() end,
         self.defaults.refreshSeconds)
@@ -358,6 +379,14 @@ function NTST:CreateSettings()
     addControl(controls, { type = "submenu", name = L("sectionDisplay"), controls = displayControls })
 
     local blinkControls = {}
+    addControl(blinkControls, {
+        type = "checkbox",
+        name = L("statusBlinkEnabled"),
+        tooltip = L("statusBlinkEnabledTooltip"),
+        getFunc = function() return self.sv.statusBlinkEnabled ~= false end,
+        setFunc = function(value) self.sv.statusBlinkEnabled = value and true or false end,
+        default = self.defaults.statusBlinkEnabled,
+    })
     addSlider(blinkControls, "blinkCount", "blinkCountTooltip", 0, 10, 1,
         function() return self.sv.blinkCount end,
         function(value) self.sv.blinkCount = value end,
@@ -447,7 +476,7 @@ function NTST:CreateSettings()
             type = "button",
             name = L("addSelectedFriend"),
             tooltip = L("addSelectedFriendTooltip"),
-            func = function() self:AddPlayer(self.sv.selectedFriend); self.sv.selectedFriend = ""; self:RefreshSettingsDropdowns() end,
+            func = function() self:AddSelectedFriend(); self:RefreshSettingsDropdowns() end,
         },
     } })
 
@@ -465,7 +494,7 @@ function NTST:CreateSettings()
             reference = "NextTryStatusTrackerGuildDropdown",
             getFunc = function() return self.sv.selectedGuildId or "" end,
             setFunc = function(value)
-                self.sv.selectedGuildId = tostring(value or "")
+                self.sv.selectedGuildId = value or ""
                 self.sv.selectedGuildMember = ""
                 self:RefreshSettingsDropdowns()
             end,
@@ -486,7 +515,8 @@ function NTST:CreateSettings()
             getFunc = function() return self.sv.selectedGuildMember or "" end,
             setFunc = function(value)
                 self.sv.selectedGuildMember = value or ""
-                local cached = self.guildMemberSelectionCache and self.guildMemberSelectionCache[self.NormalizeName(value)]
+                local key = self.NormalizeName(value)
+                local cached = key and self.guildMemberSelectionCache and self.guildMemberSelectionCache[key]
                 self.sv.selectedGuildMemberCharacter = cached and cached.characterName or ""
             end,
         },
@@ -515,6 +545,7 @@ function NTST:CreateSettings()
         {
             type = "button",
             name = L("addManualPlayer"),
+            tooltip = L("addManualPlayerTooltip"),
             func = function() self:AddPlayer(self.sv.manualPlayer); self.sv.manualPlayer = ""; self:RefreshSettingsDropdowns() end,
         },
     } })
@@ -533,6 +564,7 @@ function NTST:CreateSettings()
         {
             type = "button",
             name = L("removeSelectedPlayer"),
+            tooltip = L("removeSelectedPlayerTooltip"),
             func = function() self:RemovePlayer(self.sv.selectedRemovePlayer); self:RefreshSettingsDropdowns() end,
         },
     } })
