@@ -1,5 +1,24 @@
-*.zip
-*.bak
-*.tmp
+# Release output
+release/*.zip
+
+# Local/editor files
+.vscode/*
+!.vscode/tasks.json
+.idea/
+*.code-workspace
+
+# OS junk
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# ESO SavedVariables must never be committed
+SavedVariables/
+*.bak
+*.tmp
+
+# Logs
+*.log
+
+# Hidden/package junk
+__MACOSX/
