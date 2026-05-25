@@ -22,3 +22,6 @@ SavedVariables/
 
 # Hidden/package junk
 __MACOSX/
+
+# Local documentation material, not for GitHub
+docs/local/
