@@ -6,10 +6,10 @@ Features:
 - Track selected friends and guild members
 - Import players from your friend list
 - Import players from your guild rosters
-- [color=green]NEW:[/color] Optional player location display
-- [color=green]NEW:[/color] Hover tooltip for online and offline players
-- [color=green]NEW:[/color] Friend and guild notes in the hover tooltip
-- [color=green]NEW:[/color] Right-click player context menu
+- [color=Lime]NEW:[/color] Optional player location display
+- [color=Lime]NEW:[/color] Hover tooltip for online and offline players
+- [color=Lime]NEW:[/color] Friend and guild notes in the hover tooltip
+- [color=Lime]NEW:[/color] Right-click player context menu
 - Optional online-only display
 - Alphabetical, online-first or offline-first sorting
 - Optional online/offline grouping
@@ -19,10 +19,10 @@ Features:
 - Configurable font size, font style, colors, background, border and spacing
 - Movable and lockable HUD window
 - Keybind to show or hide the tracker window
-- [color=green]NEW:[/color] Configurable window anchor point
+- [color=Lime]NEW:[/color] Configurable window anchor point
 - Live preview in the addon settings
 - Manual account name entry as fallback
-- [color=green]NEW:[/color] Server-aware SavedVariables for EU, NA and PTS separation
+- [color=Lime]NEW:[/color] Server-aware SavedVariables for EU, NA and PTS separation
 - Multi-language support: English, German, French, Spanish, Russian and Simplified Chinese
 
 Required library:
