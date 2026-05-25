@@ -9,24 +9,24 @@ It shows a small movable HUD window with selected friends and guild members and 
 - Track selected friends and guild members
 - Import players from your friend list
 - Import players from your guild rosters
-- Manual account name entry as fallback
-- Configurable online and offline appearance
-- Optional online-only display
 - Optional player location display
-- Compact hover tooltip for online and offline players
-- Optional display of friend notes and guild notes in the hover tooltip
+- Hover tooltip for online and offline players
+- Friend and guild notes in the hover tooltip
+- Right-click player context menu
+- Optional online-only display
 - Alphabetical, online-first or offline-first sorting
 - Optional online/offline grouping
-- Configurable font size, font style, colors, background, border and spacing
 - Optional blink effect on status changes
 - Optional sound on status changes
-- Right-click context menu on tracked players
+- Configurable online and offline appearance
+- Configurable font size, font style, colors, background, border and spacing
 - Movable and lockable HUD window
-- Configurable window anchor point: left, center or right
-- Keybind for showing and hiding the tracker window
+- Keybind to show or hide the tracker window
+- Configurable window anchor point
 - Live preview in the addon settings
-- Multi-language support
+- Manual account name entry as fallback
 - Server-aware SavedVariables for EU, NA and PTS separation
+- Multi-language support: English, German, French, Spanish, Russian and Simplified Chinese
 
 ## Supported languages
 
