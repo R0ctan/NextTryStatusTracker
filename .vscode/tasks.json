@@ -16,6 +16,20 @@
       "problemMatcher": []
     },
     {
+      "label": "ESO: Build StatusTracker ZIP",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-NoProfile",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "ESO: Deploy StatusTracker",
       "type": "shell",
       "command": "powershell",
