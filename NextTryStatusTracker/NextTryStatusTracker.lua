@@ -343,6 +343,7 @@ function NTST:BuildGuildStatusMap()
             if guildId then
                 wantedByGuild[guildId] = wantedByGuild[guildId] or {}
                 if not wantedByGuild[guildId][key] then
+---@diagnostic disable-next-line: need-check-nil
                     wantedByGuild[guildId][key] = true
                     remainingByGuild[guildId] = (remainingByGuild[guildId] or 0) + 1
                 end
