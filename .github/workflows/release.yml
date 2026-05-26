@@ -1,0 +1,144 @@
+name: Release ESO Addon ZIP
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and publish release ZIP
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version from tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if (-not $tag.StartsWith("v")) {
+            throw "Tag must start with v, for example v1.1.1"
+          }
+
+          $version = $tag.Substring(1)
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP_NAME=NextTryStatusTracker_$version.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          Write-Host "Tag: $tag"
+          Write-Host "Version: $version"
+
+      - name: Validate manifest version
+        shell: pwsh
+        run: |
+          $manifestPath = "NextTryStatusTracker/NextTryStatusTracker.txt"
+
+          if (-not (Test-Path $manifestPath)) {
+            throw "Manifest not found: $manifestPath"
+          }
+
+          $manifest = Get-Content $manifestPath -Encoding UTF8
+          $versionLine = $manifest | Where-Object { $_.StartsWith("## Version:") } | Select-Object -First 1
+
+          if (-not $versionLine) {
+            throw "Manifest does not contain a ## Version line."
+          }
+
+          $manifestVersion = ($versionLine -replace "^## Version:\s*", "").Trim()
+
+          if ($manifestVersion -ne $env:VERSION) {
+            throw "Manifest version '$manifestVersion' does not match tag version '$env:VERSION'."
+          }
+
+          Write-Host "Manifest version matches tag version: $manifestVersion"
+
+      - name: Validate package structure
+        shell: pwsh
+        run: |
+          $addonRoot = "NextTryStatusTracker"
+          $manifestPath = "$addonRoot/NextTryStatusTracker.txt"
+
+          if (-not (Test-Path $addonRoot)) {
+            throw "Addon folder missing: $addonRoot"
+          }
+
+          if (-not (Test-Path $manifestPath)) {
+            throw "Manifest missing: $manifestPath"
+          }
+
+          $forbidden = @(
+            "$addonRoot/.git",
+            "$addonRoot/.github",
+            "$addonRoot/.vscode",
+            "$addonRoot/tools",
+            "$addonRoot/docs",
+            "$addonRoot/release",
+            "$addonRoot/SavedVariables",
+            "$addonRoot/__MACOSX"
+          )
+
+          foreach ($path in $forbidden) {
+            if (Test-Path $path) {
+              throw "Forbidden path inside addon folder: $path"
+            }
+          }
+
+          $manifest = Get-Content $manifestPath -Encoding UTF8
+          $referencedFiles = $manifest |
+            Where-Object {
+              $_ -and
+              -not $_.StartsWith("##") -and
+              -not $_.StartsWith("#") -and
+              $_.Trim().Length -gt 0
+            }
+
+          foreach ($file in $referencedFiles) {
+            if ($file -eq 'lang/$(language).lua') {
+              continue
+            }
+
+            $path = Join-Path $addonRoot ($file -replace "/", "\")
+            if (-not (Test-Path $path)) {
+              throw "Manifest references missing file: $file"
+            }
+          }
+
+          if ($manifest -contains 'lang/$(language).lua') {
+            if (-not (Test-Path "$addonRoot/lang/default.lua")) {
+              throw "Manifest uses lang/`$(language).lua but lang/default.lua is missing."
+            }
+          }
+
+          Write-Host "Package structure validation passed."
+
+      - name: Build ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+
+          $zipPath = "release/$env:ZIP_NAME"
+
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+
+          Compress-Archive -Path "NextTryStatusTracker" -DestinationPath $zipPath -Force
+
+          if (-not (Test-Path $zipPath)) {
+            throw "ZIP was not created: $zipPath"
+          }
+
+          Write-Host "Created ZIP: $zipPath"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NextTry StatusTracker ${{ env.VERSION }}
+          files: release/${{ env.ZIP_NAME }}
+          body_path: docs/release-notes/GITHUB_RELEASE_${{ github.ref_name }}.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
