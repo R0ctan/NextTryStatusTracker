@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Determine version from tag
+        id: release_metadata
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -26,35 +27,50 @@ jobs:
           }
 
           $version = $tag.Substring(1)
-          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "ZIP_NAME=NextTryStatusTracker_$version.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "zip_name=NextTryStatusTracker_$version.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
           Write-Host "Tag: $tag"
           Write-Host "Version: $version"
 
-      - name: Validate manifest version
+      - name: Validate manifest metadata
         shell: pwsh
         run: |
           $manifestPath = "NextTryStatusTracker/NextTryStatusTracker.txt"
+          $version = "${{ steps.release_metadata.outputs.version }}"
 
           if (-not (Test-Path $manifestPath)) {
             throw "Manifest not found: $manifestPath"
           }
 
+          if ($version -notmatch "^(\d+)\.(\d+)\.(\d+)$") {
+            throw "Tag version '$version' must use numeric major.minor.patch format."
+          }
+
+          $expectedAddonVersion =
+            ([int]$Matches[1] * 10000) +
+            ([int]$Matches[2] * 100) +
+            [int]$Matches[3]
+
           $manifest = Get-Content $manifestPath -Encoding UTF8
-          $versionLine = $manifest | Where-Object { $_.StartsWith("## Version:") } | Select-Object -First 1
+          $requiredLines = @(
+            "## Title: NextTry StatusTracker",
+            "## Author: R0ctan",
+            "## Credits: AI-assisted development by Auralith / ChatGPT",
+            "## Version: $version",
+            "## AddOnVersion: $expectedAddonVersion",
+            "## APIVersion: 101049 101050",
+            "## SavedVariables: NextTryStatusTrackerSavedVariables",
+            "## DependsOn: LibAddonMenu-2.0>=43"
+          )
 
-          if (-not $versionLine) {
-            throw "Manifest does not contain a ## Version line."
+          foreach ($line in $requiredLines) {
+            if ($manifest -notcontains $line) {
+              throw "Manifest is missing required value: $line"
+            }
           }
 
-          $manifestVersion = ($versionLine -replace "^## Version:\s*", "").Trim()
-
-          if ($manifestVersion -ne $env:VERSION) {
-            throw "Manifest version '$manifestVersion' does not match tag version '$env:VERSION'."
-          }
-
-          Write-Host "Manifest version matches tag version: $manifestVersion"
+          Write-Host "Manifest metadata matches release rules for version $version (AddOnVersion $expectedAddonVersion)."
 
       - name: Validate package structure
         shell: pwsh
@@ -84,6 +100,23 @@ jobs:
           foreach ($path in $forbidden) {
             if (Test-Path $path) {
               throw "Forbidden path inside addon folder: $path"
+            }
+          }
+
+          $forbiddenFilePatterns = @(
+            "desktop.ini",
+            "Thumbs.db",
+            ".DS_Store",
+            "*.bak",
+            "*.tmp",
+            "*.log"
+          )
+
+          foreach ($file in Get-ChildItem -Path $addonRoot -Recurse -Force -File) {
+            foreach ($pattern in $forbiddenFilePatterns) {
+              if ($file.Name -like $pattern) {
+                throw "Forbidden file inside addon folder: $($file.FullName)"
+              }
             }
           }
 
@@ -120,7 +153,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
 
-          $zipPath = "release/$env:ZIP_NAME"
+          $zipPath = "release/${{ steps.release_metadata.outputs.zip_name }}"
 
           if (Test-Path $zipPath) {
             Remove-Item $zipPath -Force
@@ -137,8 +170,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: NextTry StatusTracker ${{ env.VERSION }}
-          files: release/${{ env.ZIP_NAME }}
+          name: NextTry StatusTracker ${{ steps.release_metadata.outputs.version }}
+          files: release/${{ steps.release_metadata.outputs.zip_name }}
           body_path: docs/release-notes/GITHUB_RELEASE_${{ github.ref_name }}.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
