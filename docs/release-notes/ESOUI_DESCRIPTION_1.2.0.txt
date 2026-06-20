@@ -1,22 +1,43 @@
-NextTry StatusTracker is a configurable status tracker addon for The Elder Scrolls Online.
+[SIZE="4"][b]NextTry StatusTracker[/b][/SIZE]
+[SIZE="3"]is a configurable status tracker addon for The Elder Scrolls Online.[/SIZE]
 
-Features:
+[SIZE="3"]It shows a small movable HUD window with selected friends and guild members and updates their online/offline status. It can also show the current zone, notes, roles, tags and a compact hover tooltip with additional character information where available.
+[/SIZE]
+
+[b]Features:[/b]
 - Track selected friends and guild members
-- Player profiles with private notes, notifications, roles and editable tags
-- Optional aligned ESO role icons for raid lead, tank, healer and damage dealer
-- 32-pixel class and alliance icons after character names in the tooltip
-- Separate player tag assignment and global tag management
-- Compact last-seen time and last known character and zone for offline players
-- Automatic correction of a missing @ during manual player entry
-- Extended hover tooltip
-- Friend and guild roster import
-- Player context menu
-- Configurable sorting, grouping, styles, blink and sound
-- Server-aware SavedVariables for EU, NA and PTS
-- English, German, French, Spanish, Russian and Simplified Chinese
+- Import players from your friend list
+- Import players from your guild rosters
+- Optional player location display
+- Hover tooltip for online and offline players
+- Friend and guild notes in the hover tooltip
+- Right-click player context menu
+- [color=Lime]NEW:[/color] Player profiles with private tracker notes, per-player notifications, roles and editable tags
+- [color=Lime]NEW:[/color] Separate player tag assignment and global tag management
+- [color=Lime]NEW:[/color] Optional aligned ESO role icons for raid lead, tank, healer and damage dealer
+- [color=Lime]NEW:[/color] 32-pixel class and alliance icons after character names in the tooltip
+- [color=Lime]NEW:[/color] Compact last-seen time with last known character and zone for offline players
+- [color=Lime]NEW:[/color] Automatic correction of a missing @ during manual player entry
+- Optional online-only display
+- Alphabetical, online-first or offline-first sorting
+- Optional online/offline grouping
+- Optional blink effect on status changes
+- Optional sound on status changes
+- Configurable online and offline appearance
+- Configurable font size, font style, colors, background, border and spacing
+- Movable and lockable HUD window
+- Keybind to show or hide the tracker window
+- Configurable window anchor point
+- Live preview in the addon settings
+- Manual account name entry as fallback
+- Server-aware SavedVariables for EU, NA and PTS separation
+- Multi-language support: English, German, French, Spanish, Russian and Simplified Chinese
 
-Required library:
+[b]Required library:[/b]
 - LibAddonMenu-2.0 r43 or newer
 
-Author: R0ctan
-Credits: AI-assisted development by Auralith / ChatGPT
+[b]Author:[/b]
+R0ctan
+
+[b]Credits:[/b]
+AI-assisted development by Auralith / ChatGPT

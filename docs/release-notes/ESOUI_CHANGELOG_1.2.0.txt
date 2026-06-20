@@ -1,12 +1,12 @@
-Version 1.2.0
+[size=4][b]Version 1.2.0[/b][/size]
 
-Added:
+[size=3][b] Added:[/b][/size]
 - Player profiles with tracker notes, per-player notifications, roles, tags and last-seen information.
 - Editable player tags with assign, remove, rename and delete workflows.
 - Role markers using ESO icons for raid lead, tank, healer and damage dealer.
 - Tooltip details for character, zone, class, alliance, notes, roles, tags and available last-seen data.
 
-Changed:
+[size=3][b] Changed:[/b][/size]
 - Improved player management in the add-on settings.
 - Improved tooltip formatting with 32-pixel class and alliance icons after character names.
 - Improved last-seen handling using available friend and guild roster data.
@@ -14,7 +14,48 @@ Changed:
 - Manual player entry now adds a missing @ automatically.
 - Updated compatibility to ESO APIs 101050 and 101051.
 
-Fixed:
+[size=3][b] Fixed:[/b][/size]
 - Fixed role icon rendering so texture markup is not shown as text.
 - Fixed offline last-seen handling when roster data provides logout time.
 - Fixed role marker spacing and tooltip icon placement.
+
+
+[size=4][b]Version 1.1.0[/b][/size]
+
+[size=3][b] Added:[/b][/size]
+- Optional player location display.
+- Hover tooltip for online and offline players.
+- Optional friend note and guild note display in hover tooltip.
+- Right-click context menu on tracked player rows.
+- Context menu actions: whisper, group invite, travel to player, send mail, edit friend note where available and remove from tracker.
+- Configurable window anchor point: left, center or right.
+- Server-aware SavedVariables separation for EU, NA and PTS.
+- Shared helper structure
+- ZOS-style localization using lang/default.lua and lang/$(language).lua.
+
+[size=3][b] Changed:[/b][/size]
+- Updated required dependency to LibAddonMenu-2.0>=43.
+- Reworked HUD visibility handling. The tracker is shown only in hud/hudui, except for its own settings preview.
+- Improved blink behavior during sorting, grouping and online-only filtering.
+- Improved status refresh throttling.
+- Removed configurable padding and border-size settings from the settings UI. The window now uses no internal padding and a fixed 2 px border while unlocked.
+- Online player names no longer use a text shadow.
+- Manual import now expects @AccountName.
+
+[size=3][b] Fixed:[/b][/size]
+- Fixed LibAddonMenu panel callback warning.
+- Fixed visibility issues where the tracker could appear in menus or hide in the normal HUD.
+- Fixed position saving and loading with different window anchor points.
+- Fixed reload position jumps.
+- Fixed SetEdgeTexture errors caused by unsupported edge texture sizes.
+- Fixed localization syntax regressions and aligned localization keys across languages.
+- Fixed status-change blinking being interrupted by concurrent refreshes.
+- Fixed tooltip behavior for offline players.
+
+
+[size=4][b]Version 1.0.2[/b][/size]
+
+[size=3][b] Fixed:[/b][/size]
+- Replaced direct LibAddonMenu panel OnShow/OnHide handlers with official LAM panel callbacks.
+- Fixed LibAddonMenu warning about setting handlers directly on a panel.
+- Live preview in the addon settings remains available.
