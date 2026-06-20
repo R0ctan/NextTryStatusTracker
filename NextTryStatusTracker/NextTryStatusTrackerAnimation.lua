@@ -3,12 +3,18 @@ local function L(key) return NTST.L(key) end
 local function msg(text) return NTST.Msg(text) end
 
 function NTST:ApplyBlinkVisual(row, stateOnline)
+    if not (row and row.label and row.blinkBg) then return end
     local fontColor = self.sv.blinkFontColor or self.defaults.blinkFontColor
     local bgColor = self.sv.blinkBackgroundColor or self.defaults.blinkBackgroundColor
     row.label:SetFont(self:GetBlinkFontString(stateOnline))
     row.label:SetColor(fontColor.r, fontColor.g, fontColor.b, fontColor.a)
-    row.bg:SetCenterColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
-    row.bg:SetEdgeColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
+    if row.roleLabel then
+        row.roleLabel:SetFont(self:GetBlinkFontString(stateOnline))
+        row.roleLabel:SetColor(fontColor.r, fontColor.g, fontColor.b, fontColor.a)
+    end
+    row.blinkBg:SetCenterColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
+    row.blinkBg:SetEdgeColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
+    row.blinkBg:SetAlpha(1)
 end
 
 function NTST:BlinkThenApply(row, oldOnline, finalOnline, onComplete)
@@ -17,6 +23,7 @@ function NTST:BlinkThenApply(row, oldOnline, finalOnline, onComplete)
 
     local flashes = zo_clamp(zo_floor(tonumber(self.sv.blinkCount) or self.defaults.blinkCount or 5), 0, 20)
     if flashes <= 0 then
+        if row and row.blinkBg then row.blinkBg:SetAlpha(0) end
         self:ApplyRowVisual(row, finalOnline)
         if onComplete then onComplete(row) end
         return
@@ -37,6 +44,7 @@ function NTST:BlinkThenApply(row, oldOnline, finalOnline, onComplete)
         flashIndex = flashIndex + 1
 
         if flashIndex % 2 == 1 then
+            if row.blinkBg then row.blinkBg:SetAlpha(0) end
             self:ApplyRowVisual(row, oldOnline)
         else
             self:ApplyBlinkVisual(row, oldOnline)
@@ -47,6 +55,7 @@ function NTST:BlinkThenApply(row, oldOnline, finalOnline, onComplete)
             if flashIndex < totalTicks then
                 step()
             else
+                if row.blinkBg then row.blinkBg:SetAlpha(0) end
                 self:ApplyRowVisual(row, finalOnline)
                 if onComplete then onComplete(row) end
             end
@@ -60,38 +69,36 @@ function NTST:TestBlink()
     if not self.container or not self.rows then return end
 
     self:Refresh(true)
-    local entries = self:GetDisplayEntries()
-    if #entries == 0 then
-        msg(L("noTrackedPlayers"))
-        return
-    end
 
     local pending = 0
-    for i, entry in ipairs(entries) do
-        local row = self.rows[i]
-        if row and not row:IsHidden() then
+    for _, row in ipairs(self.rows) do
+        if row and row.entry and not row:IsHidden() then
             pending = pending + 1
         end
     end
 
-    if pending == 0 then return end
+    if pending == 0 then
+        msg(L("noTrackedPlayers"))
+        return
+    end
 
     self.blinkInProgress = true
     self.refreshAfterBlink = false
+    self.pendingInitialAfterBlink = false
 
     local function finish()
         pending = pending - 1
         if pending <= 0 then
             self.blinkInProgress = false
             self.refreshAfterBlink = false
+            self.pendingInitialAfterBlink = false
             self:Refresh(true)
         end
     end
 
-    for i, entry in ipairs(entries) do
-        local row = self.rows[i]
-        if row and not row:IsHidden() then
-            self:BlinkThenApply(row, entry.isOnline, entry.isOnline, finish)
+    for _, row in ipairs(self.rows) do
+        if row and row.entry and not row:IsHidden() then
+            self:BlinkThenApply(row, row.entry.isOnline, row.entry.isOnline, finish)
         end
     end
 end

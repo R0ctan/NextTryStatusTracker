@@ -59,7 +59,7 @@ jobs:
             "## Credits: AI-assisted development by Auralith / ChatGPT",
             "## Version: $version",
             "## AddOnVersion: $expectedAddonVersion",
-            "## APIVersion: 101049 101050",
+            "## APIVersion: 101050 101051",
             "## SavedVariables: NextTryStatusTrackerSavedVariables",
             "## DependsOn: LibAddonMenu-2.0>=43"
           )

@@ -2,7 +2,7 @@
 
 NextTry StatusTracker is a configurable status tracker addon for The Elder Scrolls Online.
 
-It shows a small movable HUD window with selected friends and guild members and updates their online/offline status. It can also show the current zone, notes and a compact hover tooltip.
+It shows a small movable HUD window with selected friends and guild members and updates their online/offline status. It can also show the current zone, notes, roles, tags and a compact hover tooltip.
 
 ## Features
 
@@ -12,6 +12,9 @@ It shows a small movable HUD window with selected friends and guild members and 
 - Optional player location display
 - Hover tooltip for online and offline players
 - Friend and guild notes in the hover tooltip
+- Private tracker notes, textured role icons and editable player tags
+- Per-player status-change notifications
+- Last-seen time with last known character and zone
 - Right-click player context menu
 - Optional online-only display
 - Alphabetical, online-first or offline-first sorting
@@ -67,13 +70,13 @@ Open the ESO settings menu and go to:
 Settings → Addons → NextTry StatusTracker
 ```
 
-There you can configure the tracker window, import players, change colors, test blinking, test sounds and adjust sorting or display options.
+There you can configure the tracker window, import and manage players, change colors, test blinking, test sounds and adjust sorting or display options.
 
 ## Player import
 
 Players can be added from your friend list, from your guild rosters or manually by entering an account name.
 
-Manual entry expects an `@AccountName`. The online/offline status can only be detected reliably if the player can be found in your friend list or in one of your guild rosters.
+Manual entry accepts an account name with or without the leading `@`; a missing `@` is added automatically. The online/offline status can only be detected reliably if the player can be found in your friend list or in one of your guild rosters.
 
 ## Hover tooltip
 
@@ -81,19 +84,27 @@ The hover tooltip can show:
 
 ```text
 @AccountName
-current_character_name
-current zone
+Char: current_character_name [class icon] [alliance icon]
+Zone: current zone
 
 Note:
-
 note text
+
+Tracker note:
+private tracker note
+
+Last seen: 2 hours ago in last known zone on character last_character_name [class icon] [alliance icon]
+Roles: [tank icon] [healer icon] [DD icon]
+Tags: Dungeon, Raid
 ```
 
-Friend notes are preferred. If no friend note is available, a guild note can be shown instead. The tooltip can also be shown for offline players, but the zone line is only displayed when a zone is available.
+Friend notes are preferred. If no friend note is available, a guild note can be shown instead. Online players show the current character and zone without a redundant "Last seen: just now" block. Offline players use the compact last-seen line with the last known character, zone and available class or alliance icons.
+
+The tooltip omits empty sections. Class and alliance use 32-pixel icons directly after the character name when available; readable text remains as a fallback when an icon cannot be shown. Raid lead uses the ESO group-leader icon, while `[RL]` is only a technical fallback.
 
 ## Right-click context menu
 
-Right-clicking a tracked player opens a small context menu with useful player actions such as whisper, group invite, travel to player, send mail, edit friend note where available and remove from tracker.
+Right-clicking a tracked player opens a small context menu with useful player actions such as whisper, group invite, travel to player, send mail, edit friend notes where available, edit the private tracker note, toggle notifications and remove the player.
 
 ## Notes
 

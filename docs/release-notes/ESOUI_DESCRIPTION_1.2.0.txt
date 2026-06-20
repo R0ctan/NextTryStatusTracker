@@ -1,0 +1,22 @@
+NextTry StatusTracker is a configurable status tracker addon for The Elder Scrolls Online.
+
+Features:
+- Track selected friends and guild members
+- Player profiles with private notes, notifications, roles and editable tags
+- Optional aligned ESO role icons for raid lead, tank, healer and damage dealer
+- 32-pixel class and alliance icons after character names in the tooltip
+- Separate player tag assignment and global tag management
+- Compact last-seen time and last known character and zone for offline players
+- Automatic correction of a missing @ during manual player entry
+- Extended hover tooltip
+- Friend and guild roster import
+- Player context menu
+- Configurable sorting, grouping, styles, blink and sound
+- Server-aware SavedVariables for EU, NA and PTS
+- English, German, French, Spanish, Russian and Simplified Chinese
+
+Required library:
+- LibAddonMenu-2.0 r43 or newer
+
+Author: R0ctan
+Credits: AI-assisted development by Auralith / ChatGPT

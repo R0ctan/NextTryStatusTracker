@@ -77,6 +77,12 @@ local function getAnchorXFromLeft(left, width, anchor)
     return left
 end
 
+local function shouldEnableRowMouseInput()
+    -- Keep row mouse input enabled for right-click context menus, unlocked dragging,
+    -- and hover handler routing. Tooltip text itself is still gated by the settings.
+    return true
+end
+
 function NTST:ResetPosition()
     self.sv.position = nil
     self:ApplyPosition()
@@ -157,26 +163,134 @@ function NTST:GetPlayerTooltipText(entry)
 
     local lines = {}
     local accountName = self.CleanPlayerText(entry.playerName)
-    local characterName = entry.playerData and self.CleanPlayerText(entry.playerData.characterName)
-    local zoneName = entry.isOnline and entry.playerData and self.CleanPlayerText(entry.playerData.zoneName)
+    local isOnline = entry.isOnline == true
+    local characterName = isOnline and entry.playerData and self.CleanPlayerText(entry.playerData.characterName)
+    local zoneName = isOnline and entry.playerData and self.CleanPlayerText(entry.playerData.zoneName)
     local note
+    local profile = entry.profile or self:GetPlayerProfile(entry.playerName)
+    local classId = entry.playerData and tonumber(entry.playerData.classId) or profile and profile.lastKnownClassId
+    local alliance = entry.playerData and tonumber(entry.playerData.alliance) or profile and profile.lastKnownAlliance
+    local classText = isOnline and self:GetClassDisplayText(classId)
+    local allianceText = isOnline and self:GetAllianceDisplayText(alliance)
+    local characterIconSize = 32
+    local lastSeenIconSize = 32
+    local classIcon = self.Icon(self:BuildClassIconMap()[classId], characterIconSize)
+    local allianceIcon = self.Icon(self.allianceIconPaths[alliance], characterIconSize)
     if entry.playerData then
         note = self.CleanPlayerText(entry.playerData.friendNote) or self.CleanPlayerText(entry.playerData.guildNote) or self.CleanPlayerText(entry.playerData.note)
     end
 
     if accountName then lines[#lines + 1] = accountName end
-    if characterName then lines[#lines + 1] = characterName end
-    if zoneName then lines[#lines + 1] = zoneName end
+    if characterName then
+        local characterLine = string.format(self.L("tooltipCharacter"), characterName)
+        local characterIcons = {}
+        if classIcon ~= "" then characterIcons[#characterIcons + 1] = classIcon end
+        if allianceIcon ~= "" then characterIcons[#characterIcons + 1] = allianceIcon end
+        if #characterIcons > 0 then
+            characterLine = string.format("%s %s", characterLine, table.concat(characterIcons, " "))
+        end
+        lines[#lines + 1] = characterLine
+    end
+    if classText and classIcon == "" then lines[#lines + 1] = string.format(self.L("tooltipClass"), classText) end
+    if allianceText and allianceIcon == "" then lines[#lines + 1] = string.format(self.L("tooltipAlliance"), allianceText) end
+    if zoneName then lines[#lines + 1] = string.format(self.L("tooltipZone"), zoneName) end
 
     if self.sv.showNotesTooltip and note and note ~= "" then
         lines[#lines + 1] = ""
         lines[#lines + 1] = self.L("tooltipNoteHeader")
-        lines[#lines + 1] = ""
         lines[#lines + 1] = note
+    end
+
+    if profile then
+        if profile.customNote ~= "" then
+            lines[#lines + 1] = ""
+            lines[#lines + 1] = self.L("tooltipTrackerNoteHeader")
+            lines[#lines + 1] = profile.customNote
+        end
+
+        if not isOnline then
+            local lastSeen = self:FormatLastSeen(profile.lastSeenAt)
+            local lastCharacter = self.CleanPlayerText(profile.lastKnownCharacterName)
+            local lastZone = self.CleanPlayerText(profile.lastKnownZone)
+            if lastCharacter then
+                local lastSeenClassIcon = self.Icon(self:BuildClassIconMap()[profile.lastKnownClassId], lastSeenIconSize)
+                local lastSeenAllianceIcon = self.Icon(self.allianceIconPaths[profile.lastKnownAlliance], lastSeenIconSize)
+                local lastSeenIcons = {}
+                if lastSeenClassIcon ~= "" then lastSeenIcons[#lastSeenIcons + 1] = lastSeenClassIcon end
+                if lastSeenAllianceIcon ~= "" then lastSeenIcons[#lastSeenIcons + 1] = lastSeenAllianceIcon end
+                if #lastSeenIcons > 0 then
+                    lastCharacter = string.format("%s %s", lastCharacter, table.concat(lastSeenIcons, " "))
+                end
+            end
+            if type(profile.lastSeenAt) == "number" then
+                if lastZone and lastCharacter then
+                    lastSeen = string.format(self.L("lastSeenZoneCharacter"), lastSeen, lastZone, lastCharacter)
+                elseif lastZone then
+                    lastSeen = string.format(self.L("lastSeenZone"), lastSeen, lastZone)
+                elseif lastCharacter then
+                    lastSeen = string.format(self.L("lastSeenCharacter"), lastSeen, lastCharacter)
+                end
+            end
+            lines[#lines + 1] = ""
+            lines[#lines + 1] = string.format(self.L("tooltipLastSeen"), lastSeen)
+        end
+
+        local detailLines = {}
+        local roles = {}
+        for _, key in ipairs(self.roleKeys) do
+            if profile.roles[key] then
+                roles[#roles + 1] = self.roleIcons[key] or self.roleFallbacks[key]
+            end
+        end
+        if #roles > 0 then detailLines[#detailLines + 1] = string.format(self.L("tooltipRoles"), table.concat(roles, " ")) end
+
+        local tags = {}
+        for _, definition in ipairs(self:GetSortedTagDefinitions()) do
+            if profile.tags[definition.key] then tags[#tags + 1] = definition.name end
+        end
+        if #tags > 0 then detailLines[#detailLines + 1] = string.format(self.L("tooltipTags"), table.concat(tags, ", ")) end
+        if #detailLines > 0 then
+            lines[#lines + 1] = ""
+            for _, detailLine in ipairs(detailLines) do lines[#lines + 1] = detailLine end
+        end
     end
 
     if #lines == 0 then return nil end
     return table.concat(lines, "\n")
+end
+
+function NTST:RegisterTrackerNoteDialog()
+    if self.trackerNoteDialogRegistered or not ZO_Dialogs_RegisterCustomDialog then return end
+    self.trackerNoteDialogRegistered = true
+    ZO_Dialogs_RegisterCustomDialog("NEXTTRY_STATUS_TRACKER_NOTE", {
+        title = { text = self.L("trackerNoteDialogTitle") },
+        mainText = { text = self.L("trackerNoteDialogText") },
+        editBox = { defaultText = "", maxInputCharacters = 500 },
+        setup = function(dialog, data)
+            local editBox = dialog and dialog:GetNamedChild("EditBox")
+            if editBox then editBox:SetText(data and data.note or "") end
+        end,
+        buttons = {
+            {
+                text = SI_DIALOG_ACCEPT,
+                callback = function(dialog)
+                    local data = dialog and dialog.data
+                    if data and data.playerName then
+                        self:SetPlayerCustomNote(data.playerName, ZO_Dialogs_GetEditBoxText and ZO_Dialogs_GetEditBoxText(dialog) or "")
+                        self:Refresh(true)
+                    end
+                end,
+            },
+            { text = SI_DIALOG_CANCEL },
+        },
+    })
+end
+
+function NTST:ShowTrackerNoteDialog(playerName)
+    if not ZO_Dialogs_ShowDialog then return end
+    self:RegisterTrackerNoteDialog()
+    local profile = self:GetPlayerProfile(playerName)
+    ZO_Dialogs_ShowDialog("NEXTTRY_STATUS_TRACKER_NOTE", { playerName = playerName, note = profile and profile.customNote or "" })
 end
 
 function NTST:ShowPlayerTooltip(control, row)
@@ -264,6 +378,16 @@ function NTST:ShowPlayerContextMenu(control, row)
         end)
     end
 
+    AddMenuItem(self.L("contextEditTrackerNote"), function()
+        self:ShowTrackerNoteDialog(accountName)
+    end)
+
+    local profile = self:GetPlayerProfile(accountName)
+    local notificationKey = profile and profile.notificationEnabled and "contextDisableNotifications" or "contextEnableNotifications"
+    AddMenuItem(self.L(notificationKey), function()
+        self:SetPlayerNotificationEnabled(accountName, not (profile and profile.notificationEnabled))
+    end)
+
     AddMenuItem("-", function() end)
     AddMenuItem(self.L("contextRemoveFromTracker"), function()
         self:RemovePlayer(accountName)
@@ -283,10 +407,11 @@ end
 
 function NTST:ApplyMouseStateToRows()
     if not self.rows then return end
-    local enabled = self.sv.uiUnlocked or self.sv.showHoverTooltip or true
+    local enabled = shouldEnableRowMouseInput()
     for _, row in ipairs(self.rows) do
         row:SetMouseEnabled(enabled)
         if row.bg then row.bg:SetMouseEnabled(enabled) end
+        if row.roleLabel then row.roleLabel:SetMouseEnabled(enabled) end
         if row.label then row.label:SetMouseEnabled(enabled) end
     end
 end
@@ -301,7 +426,7 @@ function NTST:ApplyWindowVisual()
 
     self.containerBg:SetCenterColor(bg.r, bg.g, bg.b, bg.a)
     self.containerBg:SetEdgeColor(border.r, border.g, border.b, edgeSize > 0 and borderAlpha or 0)
-    self.containerBg:SetEdgeTexture(nil, 8, 8, edgeSize)
+    self.containerBg:SetEdgeTexture("", 8, 8, edgeSize)
 end
 
 function NTST:CreateSceneFragment()
@@ -379,60 +504,101 @@ function NTST:CreateUI()
 end
 
 function NTST:ApplyRowVisual(row, isOnline)
+    if not (row and row.label and row.bg) then return end
     local state = isOnline and "online" or "offline"
     local s = self:GetStatusStyle(isOnline)
 
     row.label:SetFont(self:GetFontString(state))
     row.label:SetColor(s.fontColor.r, s.fontColor.g, s.fontColor.b, s.fontColor.a)
+    if row.roleLabel then
+        row.roleLabel:SetFont(self:GetFontString(state))
+        row.roleLabel:SetColor(s.fontColor.r, s.fontColor.g, s.fontColor.b, s.fontColor.a)
+    end
     row.bg:SetCenterColor(s.backgroundColor.r, s.backgroundColor.g, s.backgroundColor.b, s.backgroundColor.a)
     row.bg:SetEdgeColor(s.backgroundColor.r, s.backgroundColor.g, s.backgroundColor.b, s.backgroundColor.a)
+    if row.blinkBg then row.blinkBg:SetAlpha(0) end
 end
 
 function NTST:CreateRow(index)
     local row = wm:CreateControl("NextTryStatusTrackerRow" .. index, self.container, CT_CONTROL)
     row.nextTryTrackerContextRow = row
     row:SetDimensions(10, 10)
-    row:SetMouseEnabled(self.sv.uiUnlocked or self.sv.showHoverTooltip)
+    local mouseEnabled = shouldEnableRowMouseInput()
+    row:SetMouseEnabled(mouseEnabled)
     self:AttachDragHandlers(row)
     self:AttachTooltipHandlers(row, row)
 
     row.bg = wm:CreateControl("NextTryStatusTrackerRowBg" .. index, row, CT_BACKDROP)
     row.bg.nextTryTrackerContextRow = row
     row.bg:SetAnchorFill(row)
-    row.bg:SetEdgeTexture(nil, 1, 1, 0)
+    row.bg:SetEdgeTexture("", 1, 1, 0)
     row.bg:SetInsets(0, 0, 0, 0)
-    row.bg:SetMouseEnabled(self.sv.uiUnlocked or self.sv.showHoverTooltip)
+    row.bg:SetMouseEnabled(mouseEnabled)
     self:AttachDragHandlers(row.bg)
     self:AttachTooltipHandlers(row.bg, row)
+
+    row.blinkBg = wm:CreateControl("NextTryStatusTrackerRowBlinkBg" .. index, row, CT_BACKDROP)
+    row.blinkBg:SetAnchorFill(row)
+    row.blinkBg:SetEdgeTexture("", 1, 1, 0)
+    row.blinkBg:SetInsets(0, 0, 0, 0)
+    row.blinkBg:SetAlpha(0)
+
+    row.roleLabel = wm:CreateControl("NextTryStatusTrackerRowRoleLabel" .. index, row, CT_LABEL)
+    row.roleLabel.nextTryTrackerContextRow = row
+    row.roleLabel:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
+    row.roleLabel:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+    row.roleLabel:SetMouseEnabled(mouseEnabled)
+    self:AttachDragHandlers(row.roleLabel)
+    self:AttachTooltipHandlers(row.roleLabel, row)
 
     row.label = wm:CreateControl("NextTryStatusTrackerRowLabel" .. index, row, CT_LABEL)
     row.label.nextTryTrackerContextRow = row
     row.label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
     row.label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     row.label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
-    row.label:SetMouseEnabled(self.sv.uiUnlocked or self.sv.showHoverTooltip)
+    row.label:SetMouseEnabled(mouseEnabled)
     self:AttachDragHandlers(row.label)
     self:AttachTooltipHandlers(row.label, row)
 
     return row
 end
 
-function NTST:GetEstimatedRowSize(row, isOnline)
+function NTST:HasVisibleRoleMarkers(entries)
+    if not (self.sv and self.sv.showDisplayRoleMarker) then return false end
+    for _, entry in ipairs(entries or {}) do
+        if entry.roleMarker and entry.roleMarker ~= "" then return true end
+    end
+    return false
+end
+
+function NTST:GetRoleColumnWidth(entries, roleColumnActive)
+    if not roleColumnActive then return 0 end
+    local width = 0
+    for _, entry in ipairs(entries or {}) do
+        local state = entry.isOnline and "online" or "offline"
+        width = math.max(width, self:GetRoleMarkerIconSize(state) + 6)
+    end
+    return width
+end
+
+function NTST:GetEstimatedRowSize(row, isOnline, roleColumnWidth)
     local state = isOnline and "online" or "offline"
     local style = self.sv.styles[state]
     local fontSize = style.fontSize or 16
     local labelPadding = 8
     local verticalPadding = 5
+    local roleColumnRightBalance = roleColumnWidth > 0 and roleColumnWidth or 0
 
     row.label:SetFont(self:GetFontString(state))
     row.label:SetWidth(2000)
 
     local measuredWidth = row.label:GetTextWidth() or 0
     local measuredHeight = row.label:GetTextHeight() or 0
-    local width = math.max(1, zo_ceil(measuredWidth + (labelPadding * 2)))
-    local height = math.max(fontSize + (verticalPadding * 2), measuredHeight + (verticalPadding * 2), 24)
+    local roleIconSize = self:GetRoleMarkerIconSize(state)
+    local width = math.max(1, zo_ceil(measuredWidth + (labelPadding * 2) + roleColumnWidth + roleColumnRightBalance))
+    local height = math.max(fontSize + (verticalPadding * 2), measuredHeight + (verticalPadding * 2), roleIconSize + 4, 24)
 
-    return width, height, labelPadding
+    return width, height, labelPadding, roleColumnWidth, roleColumnRightBalance, roleIconSize
 end
 
 function NTST:LayoutRows(entries)
@@ -444,20 +610,26 @@ function NTST:LayoutRows(entries)
     local padding = 0
     local rowGap = zo_clamp(zo_floor(display.rowGap or 0), 0, 50)
     local groupGap = zo_clamp(zo_floor(display.groupGap or 0), 0, 100)
+    local roleColumnActive = self:HasVisibleRoleMarkers(entries)
+    local roleColumnWidth = self:GetRoleColumnWidth(entries, roleColumnActive)
 
     for i, row in ipairs(self.rows) do
         row:ClearAnchors()
         row:SetHidden(i > #entries)
         if i <= #entries then
             local entry = entries[i]
-            local width, height, labelPadding = self:GetEstimatedRowSize(row, entry.isOnline)
+            local width, height, labelPadding, rowRoleColumnWidth, roleColumnRightBalance = self:GetEstimatedRowSize(row, entry.isOnline, roleColumnWidth)
             local gap = previous and rowGap or 0
             if entry.groupBreakBefore then gap = gap + groupGap end
 
             row:SetDimensions(width, height)
             row.label:ClearAnchors()
-            row.label:SetAnchor(LEFT, row, LEFT, labelPadding, 0)
-            row.label:SetDimensions(math.max(width - (labelPadding * 2), 1), height)
+            row.label:SetAnchor(LEFT, row, LEFT, labelPadding + rowRoleColumnWidth, 0)
+            row.label:SetDimensions(math.max(width - (labelPadding * 2) - rowRoleColumnWidth - roleColumnRightBalance, 1), height)
+            row.roleLabel:ClearAnchors()
+            row.roleLabel:SetAnchor(LEFT, row, LEFT, labelPadding, 0)
+            row.roleLabel:SetDimensions(rowRoleColumnWidth, height)
+            row.roleLabel:SetHidden(rowRoleColumnWidth == 0)
 
             if self.sv.layout == "horizontal" then
                 if previous then
@@ -484,7 +656,8 @@ function NTST:LayoutRows(entries)
         for i, row in ipairs(self.rows) do
             if i <= #entries then
                 row:SetWidth(maxWidth)
-                row.label:SetWidth(math.max(maxWidth - 16, 1))
+                local roleColumnRightBalance = roleColumnWidth > 0 and roleColumnWidth or 0
+                row.label:SetWidth(math.max(maxWidth - 16 - roleColumnWidth - roleColumnRightBalance, 1))
             end
         end
         totalWidth = maxWidth
@@ -516,6 +689,8 @@ local function copyEntry(entry)
         filteredOut = entry.filteredOut,
         temporaryVisibleForBlink = entry.temporaryVisibleForBlink,
         groupBreakBefore = entry.groupBreakBefore,
+        profile = entry.profile,
+        roleMarker = entry.roleMarker,
     }
 end
 
@@ -526,7 +701,7 @@ function NTST:BuildEntriesForStableBlink(allEntries, statusTransitions, blinkEna
 
     for _, entry in ipairs(allEntries) do
         local transition = statusTransitions[entry.playerName]
-        local keepForOfflineBlink = transition and blinkEnabled and entry.filteredOut and transition.oldOnline == true and entry.isOnline == false
+        local keepForOfflineBlink = transition and transition.blink and blinkEnabled and entry.filteredOut and transition.oldOnline == true and entry.isOnline == false
         if keepForOfflineBlink then
             transition.hideAfterBlink = true
         end
@@ -560,7 +735,6 @@ function NTST:BuildEntriesForStableBlink(allEntries, statusTransitions, blinkEna
                 stableEntry.temporaryVisibleForBlink = entry.temporaryVisibleForBlink
             else
                 stableEntry = entry
-                stableEntry.groupBreakBefore = oldEntry.groupBreakBefore
             end
             stableEntry.groupBreakBefore = oldEntry.groupBreakBefore
             entries[#entries + 1] = stableEntry
@@ -581,6 +755,7 @@ end
 function NTST:Refresh(initial)
     if self.blinkInProgress then
         self.refreshAfterBlink = true
+        self.pendingInitialAfterBlink = self.pendingInitialAfterBlink or initial == true
         return
     end
 
@@ -598,13 +773,14 @@ function NTST:Refresh(initial)
 
         local statusChanged = previousStatus ~= nil and previousStatus ~= entry.isOnline and not initial
         if statusChanged then
+            local notificationEnabled = not entry.profile or entry.profile.notificationEnabled ~= false
             statusTransitions[entry.playerName] = {
                 oldOnline = previousStatus,
                 newOnline = entry.isOnline,
-                blink = blinkEnabled,
+                blink = blinkEnabled and notificationEnabled,
                 hideAfterBlink = false,
             }
-            shouldPlaySound = true
+            if notificationEnabled then shouldPlaySound = true end
         end
     end
 
@@ -636,6 +812,8 @@ function NTST:Refresh(initial)
         row.entry = entry
         row.tooltipText = self:GetPlayerTooltipText(entry)
         row.label:SetText(entry.displayName)
+        local roleState = entry.isOnline and "online" or "offline"
+        row.roleLabel:SetText(self:GetDisplayRoleMarker(entry.playerName, self:GetRoleMarkerIconSize(roleState)) or "")
         row:SetHidden(false)
 
         local statusTransition = statusTransitions[entry.playerName]
@@ -672,9 +850,11 @@ function NTST:Refresh(initial)
     local pendingBlinkTransitions = blinkTransitionCount
 
     local function completeBlinkSequence()
+        local pendingInitial = self.pendingInitialAfterBlink == true
         self.blinkInProgress = false
         self.refreshAfterBlink = false
-        self:Refresh(false)
+        self.pendingInitialAfterBlink = false
+        self:Refresh(pendingInitial)
     end
 
     local function finishBlink(row, hideAfterBlink)
@@ -691,6 +871,7 @@ function NTST:Refresh(initial)
     if blinkTransitionCount > 0 then
         self.blinkInProgress = true
         self.refreshAfterBlink = false
+        self.pendingInitialAfterBlink = false
     end
 
     for _, transition in ipairs(transitions) do

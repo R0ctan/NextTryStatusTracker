@@ -1,0 +1,20 @@
+Version 1.2.0
+
+Added:
+- Player profiles with tracker notes, per-player notifications, roles, tags and last-seen information.
+- Editable player tags with assign, remove, rename and delete workflows.
+- Role markers using ESO icons for raid lead, tank, healer and damage dealer.
+- Tooltip details for character, zone, class, alliance, notes, roles, tags and available last-seen data.
+
+Changed:
+- Improved player management in the add-on settings.
+- Improved tooltip formatting with 32-pixel class and alliance icons after character names.
+- Improved last-seen handling using available friend and guild roster data.
+- Main-list role icons now scale with the configured text size.
+- Manual player entry now adds a missing @ automatically.
+- Updated compatibility to ESO APIs 101050 and 101051.
+
+Fixed:
+- Fixed role icon rendering so texture markup is not shown as text.
+- Fixed offline last-seen handling when roster data provides logout time.
+- Fixed role marker spacing and tooltip icon placement.

@@ -2,13 +2,56 @@ NextTryStatusTracker = NextTryStatusTracker or {}
 local NTST = NextTryStatusTracker
 
 NTST.name = "NextTryStatusTracker"
-NTST.version = "1.1.0"
+NTST.version = "1.2.0"
 NTST.savedVariablesName = "NextTryStatusTrackerSavedVariables"
 NTST.savedVariablesVersion = 1
 
 local em = EVENT_MANAGER
 local EVENT_REFRESH_DELAY_MS = 1000
 local FAST_REFRESH_DELAY_MS = 100
+
+NTST.roleKeys = { "tank", "healer", "dd" }
+NTST.roleIconPaths = {
+    raidlead = "EsoUI/Art/Compass/groupleader.dds",
+    tank = "EsoUI/Art/LFG/LFG_icon_tank.dds",
+    healer = "EsoUI/Art/LFG/LFG_icon_healer.dds",
+    dd = "EsoUI/Art/LFG/LFG_icon_dps.dds",
+}
+NTST.roleFallbacks = { tank = "[T]", healer = "[H]", dd = "[DD]", raidlead = "[RL]" }
+NTST.defaultTagDefinitions = {
+    dungeon = { name = "Dungeon", nameKey = "tagDungeon" },
+    raid = { name = "Raid", nameKey = "tagRaid" },
+    pvp = { name = "PvP", nameKey = "tagPvp" },
+    trade = { name = "Trade", nameKey = "tagTrade" },
+    crafter = { name = "Crafter", nameKey = "tagCrafter" },
+}
+NTST.validDisplayRoles = { none = true, tank = true, healer = true, dd = true, raidlead = true }
+
+function NTST.Icon(path, size)
+    if type(path) ~= "string" or path == "" then return "" end
+    size = tonumber(size) or 18
+    if zo_iconFormat then
+        local ok, formatted = pcall(function() return zo_iconFormat(path, size, size) end)
+        if ok and type(formatted) == "string" and formatted ~= "" then return formatted end
+    end
+    return string.format("|t%d:%d:%s|t", size, size, path)
+end
+
+NTST.roleIcons = {}
+for role, path in pairs(NTST.roleIconPaths) do
+    NTST.roleIcons[role] = NTST.Icon(path, 18)
+end
+
+NTST.allianceIconPaths = {}
+if ALLIANCE_ALDMERI_DOMINION then
+    NTST.allianceIconPaths[ALLIANCE_ALDMERI_DOMINION] = "EsoUI/Art/MapPins/AvA_flagAldmeri.dds"
+end
+if ALLIANCE_DAGGERFALL_COVENANT then
+    NTST.allianceIconPaths[ALLIANCE_DAGGERFALL_COVENANT] = "EsoUI/Art/MapPins/AvA_flagDaggerfall.dds"
+end
+if ALLIANCE_EBONHEART_PACT then
+    NTST.allianceIconPaths[ALLIANCE_EBONHEART_PACT] = "EsoUI/Art/MapPins/AvA_flagEbonheart.dds"
+end
 
 function NTST.CopyColor(c)
     if not c then return { r = 1, g = 1, b = 1, a = 1 } end
@@ -29,6 +72,7 @@ NTST.defaults = {
     showLocation = true,
     showHoverTooltip = true,
     showNotesTooltip = true,
+    showDisplayRoleMarker = false,
     locationRefreshSeconds = 60,
     windowAnchor = "left",
     refreshSeconds = 60,
@@ -45,6 +89,14 @@ NTST.defaults = {
     selectedGuildMemberCharacter = "",
     manualPlayer = "",
     selectedRemovePlayer = "",
+    selectedManagedPlayer = "",
+    selectedTagKey = "",
+    selectedAddTagKey = "",
+    selectedRemoveTagKey = "",
+    tagNameInput = "",
+    nextTagId = 1,
+    tagDefinitionsInitialized = false,
+    tagDefinitions = {},
     position = nil,
     players = {},
     playerSources = {},
@@ -114,6 +166,287 @@ function NTST.NormalizeDisplayName(name)
     return name
 end
 
+function NTST:BuildClassIconMap()
+    if self.classIconsById then return self.classIconsById end
+    self.classIconsById = {}
+    if not (GetNumClasses and GetClassInfo) then return self.classIconsById end
+    local okCount, classCount = pcall(function() return GetNumClasses() end)
+    local count = okCount and tonumber(classCount) or 0
+    for index = 1, count do
+        local ok, classId, _, _, _, _, _, ingameIcon = pcall(function() return GetClassInfo(index) end)
+        if ok and type(classId) == "number" and type(ingameIcon) == "string" and ingameIcon ~= "" then
+            self.classIconsById[classId] = ingameIcon
+        end
+    end
+    return self.classIconsById
+end
+
+function NTST:GetClassDisplayText(classId)
+    if type(classId) ~= "number" then return nil end
+    local name
+    if GetClassName and GENDER_MALE then
+        local ok, value = pcall(function() return GetClassName(GENDER_MALE, classId) end)
+        if ok then name = self.CleanPlayerText(value) end
+    end
+    return name
+end
+
+function NTST:GetAllianceDisplayText(alliance)
+    if type(alliance) ~= "number" then return nil end
+    local name
+    if GetAllianceName then
+        local ok, value = pcall(function() return GetAllianceName(alliance) end)
+        if ok then name = self.CleanPlayerText(value) end
+    end
+    return name
+end
+
+local function ensurePlayerBoolTable(value, keys)
+    if type(value) ~= "table" then value = {} end
+    for _, key in ipairs(keys) do
+        if type(value[key]) ~= "boolean" then value[key] = false end
+    end
+    return value
+end
+
+function NTST:GetSortedTagDefinitions()
+    local definitions = self.sv and self.sv.tagDefinitions or {}
+    local sorted = {}
+    for key, definition in pairs(definitions) do
+        local name = type(definition) == "table" and self.CleanPlayerText(definition.name)
+        if type(key) == "string" and name then
+            sorted[#sorted + 1] = { key = key, name = name }
+        end
+    end
+    table.sort(sorted, function(a, b) return zo_strlower(a.name) < zo_strlower(b.name) end)
+    return sorted
+end
+
+function NTST:BuildTagChoices()
+    local choices, values = { L("none") }, { "" }
+    for _, definition in ipairs(self:GetSortedTagDefinitions()) do
+        choices[#choices + 1] = definition.name
+        values[#values + 1] = definition.key
+    end
+    return choices, values
+end
+
+function NTST:BuildPlayerTagChoices(playerName, assigned)
+    local choices, values = {}, {}
+    local profile = playerName and self:GetPlayerProfile(playerName)
+    if not profile then return choices, values end
+    for _, definition in ipairs(self:GetSortedTagDefinitions()) do
+        local isAssigned = profile.tags[definition.key] == true
+        if isAssigned == assigned then
+            choices[#choices + 1] = definition.name
+            values[#values + 1] = definition.key
+        end
+    end
+    return choices, values
+end
+
+function NTST:GetPlayerTagNames(playerName)
+    local names = {}
+    local profile = playerName and self:GetPlayerProfile(playerName)
+    if not profile then return names end
+    for _, definition in ipairs(self:GetSortedTagDefinitions()) do
+        if profile.tags[definition.key] then names[#names + 1] = definition.name end
+    end
+    return names
+end
+
+function NTST:SetPlayerTagAssigned(playerName, tagKey, assigned)
+    local profile = playerName and self:GetPlayerProfile(playerName)
+    if not profile or not self:GetTagDefinition(tagKey) then return false end
+    profile.tags[tagKey] = assigned and true or nil
+    return true
+end
+
+function NTST:GetTagDefinition(tagKey)
+    local definitions = self.sv and self.sv.tagDefinitions
+    local definition = definitions and definitions[tagKey]
+    return type(definition) == "table" and definition or nil
+end
+
+function NTST:FindTagKeyByName(name)
+    name = self.CleanPlayerText(name)
+    if not name then return nil end
+    local normalized = zo_strlower(name)
+    for _, definition in ipairs(self:GetSortedTagDefinitions()) do
+        if zo_strlower(definition.name) == normalized then return definition.key end
+    end
+    return nil
+end
+
+function NTST:AddTagDefinition(name)
+    name = self.CleanPlayerText(name)
+    if not name or self:FindTagKeyByName(name) then return nil end
+    local tagKey
+    repeat
+        tagKey = "custom" .. tostring(self.sv.nextTagId)
+        self.sv.nextTagId = self.sv.nextTagId + 1
+    until not self.sv.tagDefinitions[tagKey]
+    self.sv.tagDefinitions[tagKey] = { name = name }
+    self.sv.selectedTagKey = tagKey
+    self.sv.tagNameInput = name
+    return tagKey
+end
+
+function NTST:RenameTagDefinition(tagKey, name)
+    local definition = self:GetTagDefinition(tagKey)
+    name = self.CleanPlayerText(name)
+    local duplicateKey = name and self:FindTagKeyByName(name)
+    if not definition or not name or (duplicateKey and duplicateKey ~= tagKey) then return false end
+    definition.name = name
+    self.sv.tagNameInput = name
+    return true
+end
+
+function NTST:DeleteTagDefinition(tagKey)
+    if not self:GetTagDefinition(tagKey) then return false end
+    self.sv.tagDefinitions[tagKey] = nil
+    for _, profile in pairs(self.sv.playerSources or {}) do
+        if type(profile) == "table" and type(profile.tags) == "table" then
+            profile.tags[tagKey] = nil
+        end
+    end
+    if self.sv.selectedTagKey == tagKey then
+        self.sv.selectedTagKey = ""
+        self.sv.tagNameInput = ""
+    end
+    if self.sv.selectedAddTagKey == tagKey then self.sv.selectedAddTagKey = "" end
+    if self.sv.selectedRemoveTagKey == tagKey then self.sv.selectedRemoveTagKey = "" end
+    return true
+end
+
+function NTST:EnsurePlayerProfile(playerName)
+    if not self.sv then return nil end
+    if type(self.sv.playerSources) ~= "table" then self.sv.playerSources = {} end
+
+    local key = self.NormalizeName(playerName)
+    if not key then return nil end
+
+    local profile = self.sv.playerSources[key]
+    if type(profile) ~= "table" then
+        profile = { source = "manual" }
+        self.sv.playerSources[key] = profile
+    end
+
+    if type(profile.source) ~= "string" or profile.source == "" then profile.source = "manual" end
+    if type(profile.customNote) ~= "string" then profile.customNote = "" end
+    if type(profile.notificationEnabled) ~= "boolean" then profile.notificationEnabled = true end
+    if type(profile.lastSeenAt) ~= "number" then profile.lastSeenAt = nil end
+    if type(profile.lastKnownZone) ~= "string" then profile.lastKnownZone = "" end
+    if type(profile.lastKnownCharacterName) ~= "string" then profile.lastKnownCharacterName = "" end
+    if type(profile.lastKnownClassId) ~= "number" then profile.lastKnownClassId = nil end
+    if type(profile.lastKnownAlliance) ~= "number" then profile.lastKnownAlliance = nil end
+
+    if profile.lastKnownCharacterName == "" then
+        profile.lastKnownCharacterName = self.CleanPlayerText(profile.characterName) or ""
+    end
+    if profile.lastKnownZone == "" then
+        profile.lastKnownZone = self.CleanPlayerText(profile.zoneName) or ""
+    end
+    if not profile.lastKnownClassId then profile.lastKnownClassId = tonumber(profile.classId) end
+    if not profile.lastKnownAlliance then profile.lastKnownAlliance = tonumber(profile.alliance) end
+
+    profile.roles = ensurePlayerBoolTable(profile.roles, self.roleKeys)
+    if type(profile.tags) ~= "table" then profile.tags = {} end
+    if not self.validDisplayRoles[profile.displayRole] then profile.displayRole = "none" end
+
+    return profile
+end
+
+function NTST:GetPlayerProfile(playerName)
+    return self:EnsurePlayerProfile(playerName)
+end
+
+function NTST:FormatLastSeen(lastSeenAt)
+    if type(lastSeenAt) ~= "number" or not GetTimeStamp then return L("lastSeenUnknown") end
+
+    local elapsed = math.max(0, GetTimeStamp() - lastSeenAt)
+    if elapsed < 60 then return L("lastSeenNow") end
+    if elapsed < 3600 then
+        local minutes = math.max(1, zo_floor(elapsed / 60))
+        return string.format(L(minutes == 1 and "lastSeenMinute" or "lastSeenMinutes"), minutes)
+    end
+    if elapsed < 86400 then
+        local hours = math.max(1, zo_floor(elapsed / 3600))
+        return string.format(L(hours == 1 and "lastSeenHour" or "lastSeenHours"), hours)
+    end
+
+    local days = math.max(1, zo_floor(elapsed / 86400))
+    return string.format(L(days == 1 and "lastSeenDay" or "lastSeenDays"), days)
+end
+
+function NTST:UpdateLastKnownPlayerData(playerName, playerData, isOnline)
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not profile then return end
+
+    local characterName = playerData and self.CleanPlayerText(playerData.characterName)
+    local zoneName = playerData and self.CleanPlayerText(playerData.zoneName)
+    local classId = playerData and tonumber(playerData.classId)
+    local alliance = playerData and tonumber(playerData.alliance)
+    local secsSinceLogoff = playerData and tonumber(playerData.secsSinceLogoff)
+    if characterName then profile.lastKnownCharacterName = characterName end
+    if zoneName then profile.lastKnownZone = zoneName end
+    if classId and classId > 0 then profile.lastKnownClassId = classId end
+    if alliance and alliance > 0 then profile.lastKnownAlliance = alliance end
+    if GetTimeStamp then
+        if isOnline then
+            profile.lastSeenAt = GetTimeStamp()
+        elseif secsSinceLogoff and secsSinceLogoff >= 0 then
+            profile.lastSeenAt = math.max(0, GetTimeStamp() - secsSinceLogoff)
+        end
+    end
+end
+
+function NTST:SetPlayerNotificationEnabled(playerName, enabled)
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not profile then return end
+    profile.notificationEnabled = enabled and true or false
+end
+
+function NTST:SetPlayerCustomNote(playerName, note)
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not profile then return end
+    profile.customNote = type(note) == "string" and zo_strtrim(note) or ""
+end
+
+function NTST:ResetPlayerRolesAndTags(playerName)
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not profile then return end
+    for _, key in ipairs(self.roleKeys) do profile.roles[key] = false end
+    for key in pairs(profile.tags) do profile.tags[key] = nil end
+    profile.displayRole = "none"
+end
+
+function NTST:ResetPlayerLastKnownData(playerName)
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not profile then return end
+    profile.lastSeenAt = nil
+    profile.lastKnownCharacterName = ""
+    profile.lastKnownZone = ""
+    profile.lastKnownClassId = nil
+    profile.lastKnownAlliance = nil
+end
+
+function NTST:GetRoleMarkerIconSize(state)
+    state = state == "online" and "online" or "offline"
+    local style = self.sv and self.sv.styles and self.sv.styles[state]
+    local fontSize = style and tonumber(style.fontSize) or 16
+    return zo_clamp(zo_floor((fontSize * 1.1) + 0.5), 14, 30)
+end
+
+function NTST:GetDisplayRoleMarker(playerName, size)
+    if not (self.sv and self.sv.showDisplayRoleMarker) then return nil end
+    local profile = self:EnsurePlayerProfile(playerName)
+    if not (profile and profile.displayRole and profile.displayRole ~= "none") then return nil end
+    local icon = self.Icon(self.roleIconPaths[profile.displayRole], size or 18)
+    if icon ~= "" then return icon end
+    return self.roleFallbacks[profile.displayRole]
+end
+
 function NTST:FindPlayerIndex(name)
     local normalized = self.NormalizeName(name)
     if not normalized or not self.sv or not self.sv.players then return nil end
@@ -160,6 +493,9 @@ function NTST:GetFriendListData()
         if existing then
             existing.characterName = existing.characterName or data.characterName
             existing.zoneName = existing.zoneName or data.zoneName
+            existing.classId = existing.classId or data.classId
+            existing.alliance = existing.alliance or data.alliance
+            existing.secsSinceLogoff = existing.secsSinceLogoff or data.secsSinceLogoff
             existing.note = existing.note or data.note
             if existing.status == nil and data.status ~= nil then existing.status = data.status end
             if existing.online == nil and data.online ~= nil then existing.online = data.online end
@@ -174,11 +510,11 @@ function NTST:GetFriendListData()
     -- Prefer the direct friend API because GetFriendCharacterInfo reliably exposes zoneName.
     if GetNumFriends and GetFriendInfo then
         for i = 1, GetNumFriends() do
-            local displayName, note, status = GetFriendInfo(i)
-            local hasCharacter, characterName, zoneName
+            local displayName, note, status, secsSinceLogoff = GetFriendInfo(i)
+            local hasCharacter, characterName, zoneName, classId, alliance
             if GetFriendCharacterInfo then
-                local ok, a, b, c = pcall(function() return GetFriendCharacterInfo(i) end)
-                if ok then hasCharacter, characterName, zoneName = a, b, c end
+                local ok, a, b, c, d, e = pcall(function() return GetFriendCharacterInfo(i) end)
+                if ok then hasCharacter, characterName, zoneName, classId, alliance = a, b, c, d, e end
             end
 
             displayName = self.CleanPlayerText(displayName)
@@ -190,6 +526,9 @@ function NTST:GetFriendListData()
                     displayName = displayName,
                     characterName = hasCharacter and characterName or nil,
                     zoneName = hasCharacter and zoneName or nil,
+                    classId = hasCharacter and tonumber(classId) or nil,
+                    alliance = hasCharacter and tonumber(alliance) or nil,
+                    secsSinceLogoff = tonumber(secsSinceLogoff),
                     note = note,
                     friendNote = note,
                     status = status,
@@ -260,14 +599,16 @@ function NTST:GetGuildMemberData(guildId, memberIndex)
     note = self.CleanPlayerText(note)
     if not displayName then return nil end
 
-    local characterName, zoneName
+    local characterName, zoneName, classId, alliance
     if GetGuildMemberCharacterInfo then
-        local okChar, hasCharacter, charName, zone = pcall(function()
+        local okChar, hasCharacter, charName, zone, classType, allianceId = pcall(function()
             return GetGuildMemberCharacterInfo(guildId, memberIndex)
         end)
         if okChar and hasCharacter then
             characterName = self.CleanPlayerText(charName)
             zoneName = self.CleanPlayerText(zone)
+            classId = tonumber(classType)
+            alliance = tonumber(allianceId)
         end
     end
 
@@ -275,6 +616,9 @@ function NTST:GetGuildMemberData(guildId, memberIndex)
         displayName = displayName,
         characterName = characterName,
         zoneName = zoneName,
+        classId = classId,
+        alliance = alliance,
+        secsSinceLogoff = tonumber(secsSinceLogoff),
         note = note,
         guildNote = note,
         status = status,
@@ -407,20 +751,25 @@ function NTST:GetDisplayEntries(includeFiltered)
 
     for _, playerName in ipairs(self:GetTrackedPlayers()) do
         local key = self.NormalizeName(playerName)
-        local sourceData = self.sv.playerSources and self.sv.playerSources[key]
+        local sourceData = self:EnsurePlayerProfile(playerName)
         local friendData = friendMap[key]
         local guildData = guildMap[key]
         local playerData = friendData or guildData
         if friendData and guildData then
             if not playerData.characterName and guildData.characterName then playerData.characterName = guildData.characterName end
             if not playerData.zoneName and guildData.zoneName then playerData.zoneName = guildData.zoneName end
+            if not playerData.classId and guildData.classId then playerData.classId = guildData.classId end
+            if not playerData.alliance and guildData.alliance then playerData.alliance = guildData.alliance end
+            if playerData.secsSinceLogoff == nil and guildData.secsSinceLogoff ~= nil then playerData.secsSinceLogoff = guildData.secsSinceLogoff end
             if guildData.guildNote and not playerData.guildNote then playerData.guildNote = guildData.guildNote end
             if not playerData.note and guildData.note then playerData.note = guildData.note end
         end
-        if not playerData and sourceData and sourceData.characterName then
+        if not playerData and sourceData then
             playerData = {
-                characterName = sourceData.characterName,
-                zoneName = sourceData.zoneName,
+                characterName = self.CleanPlayerText(sourceData.lastKnownCharacterName) or sourceData.characterName,
+                zoneName = self.CleanPlayerText(sourceData.lastKnownZone) or sourceData.zoneName,
+                classId = sourceData.lastKnownClassId or tonumber(sourceData.classId),
+                alliance = sourceData.lastKnownAlliance or tonumber(sourceData.alliance),
                 note = sourceData.note,
                 friendNote = sourceData.friendNote,
                 guildNote = sourceData.guildNote,
@@ -431,12 +780,15 @@ function NTST:GetDisplayEntries(includeFiltered)
         elseif playerData and sourceData then
             if not playerData.characterName and sourceData.characterName then playerData.characterName = sourceData.characterName end
             if not playerData.zoneName and sourceData.zoneName then playerData.zoneName = sourceData.zoneName end
+            if not playerData.classId and sourceData.lastKnownClassId then playerData.classId = sourceData.lastKnownClassId end
+            if not playerData.alliance and sourceData.lastKnownAlliance then playerData.alliance = sourceData.lastKnownAlliance end
             if not playerData.note and sourceData.note then playerData.note = sourceData.note end
             if not playerData.friendNote and sourceData.friendNote then playerData.friendNote = sourceData.friendNote end
             if not playerData.guildNote and sourceData.guildNote then playerData.guildNote = sourceData.guildNote end
             if not playerData.guildId and sourceData.guildId then playerData.guildId = sourceData.guildId end
         end
         local isOnline = playerData and playerData.online or false
+        self:UpdateLastKnownPlayerData(playerName, playerData, isOnline)
         local filteredOut = self.sv.showOnlyOnline and not isOnline
         if includeFiltered or not filteredOut then
             entries[#entries + 1] = {
@@ -445,6 +797,8 @@ function NTST:GetDisplayEntries(includeFiltered)
                 isOnline = isOnline,
                 displayName = self:GetDisplayNameForPlayer(playerName, playerData),
                 filteredOut = filteredOut,
+                profile = sourceData,
+                roleMarker = self:GetDisplayRoleMarker(playerName),
             }
         end
     end
@@ -459,12 +813,14 @@ function NTST:GetDisplayEntries(includeFiltered)
         return false
     end
 
+    local sortMode = self.sv.sortMode
+    local groupByStatus = self.sv.groupByStatus
     table.sort(entries, function(a, b)
         if a.isOnline ~= b.isOnline then
-            if self.sv.groupByStatus or self.sv.sortMode == "onlineFirst" then
-                return self.sv.sortMode == "offlineFirst" and not a.isOnline or a.isOnline
-            elseif self.sv.sortMode == "offlineFirst" then
+            if sortMode == "offlineFirst" then
                 return not a.isOnline
+            elseif groupByStatus or sortMode == "onlineFirst" then
+                return a.isOnline
             end
         end
         return alpha(a, b)
@@ -524,6 +880,10 @@ function NTST:ResolvePlayerSource(name, allowGuildSearch)
 end
 
 function NTST:AddPlayer(name, sourceData)
+    name = self.CleanPlayerText(name)
+    if name and name ~= L("none") and not string.match(name, "^@") then
+        name = "@" .. name
+    end
     name = self.NormalizeDisplayName(name)
     if not name then
         msg(L("invalidName"))
@@ -537,6 +897,7 @@ function NTST:AddPlayer(name, sourceData)
     sourceData = sourceData or self:ResolvePlayerSource(name, true)
     self.sv.players[#self.sv.players + 1] = name
     self.sv.playerSources[self.NormalizeName(name)] = sourceData
+    self:EnsurePlayerProfile(name)
     self:SortTrackedPlayers()
     self.sv.selectedRemovePlayer = ""
     msg(name .. " " .. L("added"))
@@ -582,14 +943,18 @@ function NTST:RemovePlayer(name)
     local removed = table.remove(self.sv.players, index)
     if self.sv.playerSources then self.sv.playerSources[self.NormalizeName(removed)] = nil end
     self.sv.selectedRemovePlayer = ""
+    if self.NormalizeName(self.sv.selectedManagedPlayer) == self.NormalizeName(removed) then
+        self.sv.selectedManagedPlayer = ""
+    end
     msg(removed .. " " .. L("removed"))
     self:Refresh()
     self:RefreshSettingsDropdowns()
 end
 
-function NTST:SetEnabled(enabled)
-    -- Kept for SavedVariables/backwards compatibility. NextTry StatusTracker is visual only,
-    -- so the settings UI exposes only the window visibility toggle.
+function NTST:SetEnabled(_enabled)
+    -- _enabled is intentionally ignored for SavedVariables/backwards compatibility.
+    -- NextTry StatusTracker is visual only, so the settings UI exposes only the
+    -- window visibility toggle and the addon remains logically enabled.
     self.sv.enabled = true
     self:ApplyVisibility()
     self:Refresh(true)
@@ -661,6 +1026,7 @@ function NTST:ApplyMigrations()
     ensureBool(sv, "showLocation", d.showLocation)
     ensureBool(sv, "showHoverTooltip", d.showHoverTooltip)
     ensureBool(sv, "showNotesTooltip", d.showNotesTooltip)
+    ensureBool(sv, "showDisplayRoleMarker", d.showDisplayRoleMarker)
     ensureNumber(sv, "locationRefreshSeconds", d.locationRefreshSeconds)
     ensureString(sv, "windowAnchor", d.windowAnchor)
     ensureNumber(sv, "refreshSeconds", d.refreshSeconds)
@@ -677,6 +1043,36 @@ function NTST:ApplyMigrations()
     end
     ensureString(sv, "selectedGuildMember", d.selectedGuildMember)
     ensureString(sv, "selectedGuildMemberCharacter", d.selectedGuildMemberCharacter)
+    ensureString(sv, "selectedManagedPlayer", d.selectedManagedPlayer)
+    ensureString(sv, "selectedTagKey", d.selectedTagKey)
+    ensureString(sv, "selectedAddTagKey", d.selectedAddTagKey)
+    ensureString(sv, "selectedRemoveTagKey", d.selectedRemoveTagKey)
+    ensureString(sv, "tagNameInput", d.tagNameInput)
+    ensureNumber(sv, "nextTagId", d.nextTagId)
+
+    if type(sv.tagDefinitions) ~= "table" then sv.tagDefinitions = {} end
+    if sv.tagDefinitionsInitialized ~= true then
+        for key, definition in pairs(self.defaultTagDefinitions) do
+            if not sv.tagDefinitions[key] then
+                local name = definition.name
+                if definition.nameKey then
+                    local localizedName = L(definition.nameKey)
+                    if localizedName and localizedName ~= definition.nameKey then name = localizedName end
+                end
+                sv.tagDefinitions[key] = { name = self.CleanPlayerText(name) or definition.name }
+            end
+        end
+        sv.tagDefinitionsInitialized = true
+    end
+    for key, definition in pairs(sv.tagDefinitions) do
+        if type(key) ~= "string" or type(definition) ~= "table" or not self.CleanPlayerText(definition.name) then
+            sv.tagDefinitions[key] = nil
+        end
+    end
+    if sv.selectedTagKey ~= "" and not sv.tagDefinitions[sv.selectedTagKey] then
+        sv.selectedTagKey = ""
+        sv.tagNameInput = ""
+    end
 
     if type(sv.players) ~= "table" then sv.players = {} end
     if type(sv.playerSources) ~= "table" then sv.playerSources = {} end
@@ -685,6 +1081,7 @@ function NTST:ApplyMigrations()
         if key and type(sv.playerSources[key]) ~= "table" then
             sv.playerSources[key] = { source = "manual" }
         end
+        self:EnsurePlayerProfile(playerName)
     end
     if type(sv.position) == "table" and (type(sv.position.x) ~= "number" or type(sv.position.y) ~= "number") then
         sv.position = nil
@@ -725,7 +1122,7 @@ function NTST:ApplyMigrations()
         sv.windowAnchor = d.windowAnchor
     end
 
-    sv.dataVersion = 10100
+    sv.dataVersion = 10200
 end
 
 function NTST:ScheduleRefresh(delayMs, initial)

@@ -22,6 +22,12 @@ local function sanitizeDropdownChoices(choices, values)
     return safeChoices, safeValues
 end
 
+local function buildPlayerTagDropdownChoices(playerName, assigned, emptyKey)
+    local choices, values = NTST:BuildPlayerTagChoices(playerName, assigned)
+    if #choices == 0 then return { L(emptyKey) }, { "" } end
+    return choices, values
+end
+
 local function addControl(controls, control)
     controls[#controls + 1] = control
 end
@@ -158,6 +164,27 @@ function NTST:RefreshSettingsDropdowns()
         NextTryStatusTrackerRemoveDropdown:UpdateChoices(trackedChoices, trackedValues)
         NextTryStatusTrackerRemoveDropdown:UpdateValue()
     end
+    if NextTryStatusTrackerManagedDropdown and NextTryStatusTrackerManagedDropdown.UpdateChoices then
+        local trackedChoices, trackedValues = sanitizeDropdownChoices(self:BuildTrackedChoices())
+        NextTryStatusTrackerManagedDropdown:UpdateChoices(trackedChoices, trackedValues)
+        NextTryStatusTrackerManagedDropdown:UpdateValue()
+    end
+    if NextTryStatusTrackerTagDropdown and NextTryStatusTrackerTagDropdown.UpdateChoices then
+        local tagChoices, tagValues = sanitizeDropdownChoices(self:BuildTagChoices())
+        NextTryStatusTrackerTagDropdown:UpdateChoices(tagChoices, tagValues)
+        NextTryStatusTrackerTagDropdown:UpdateValue()
+    end
+    local managedPlayer = self.NormalizeDisplayName(self.sv.selectedManagedPlayer)
+    if NextTryStatusTrackerAddTagDropdown and NextTryStatusTrackerAddTagDropdown.UpdateChoices then
+        local choices, values = buildPlayerTagDropdownChoices(managedPlayer, false, "noMoreTagsAvailable")
+        NextTryStatusTrackerAddTagDropdown:UpdateChoices(choices, values)
+        NextTryStatusTrackerAddTagDropdown:UpdateValue()
+    end
+    if NextTryStatusTrackerRemoveTagDropdown and NextTryStatusTrackerRemoveTagDropdown.UpdateChoices then
+        local choices, values = buildPlayerTagDropdownChoices(managedPlayer, true, "noTagsAssigned")
+        NextTryStatusTrackerRemoveTagDropdown:UpdateChoices(choices, values)
+        NextTryStatusTrackerRemoveTagDropdown:UpdateValue()
+    end
 end
 
 function NTST:IsOwnSettingsPanel(panel)
@@ -192,6 +219,38 @@ function NTST:RegisterSettingsPreviewCallbacks()
     end)
 end
 
+function NTST:RegisterTagDeleteDialog()
+    if self.tagDeleteDialogRegistered or not ZO_Dialogs_RegisterCustomDialog then return end
+    self.tagDeleteDialogRegistered = true
+    ZO_Dialogs_RegisterCustomDialog("NEXTTRY_STATUS_TRACKER_DELETE_TAG", {
+        title = { text = L("deleteTagConfirmTitle") },
+        mainText = { text = L("deleteTagConfirmText") },
+        buttons = {
+            {
+                text = SI_DIALOG_ACCEPT,
+                callback = function(dialog)
+                    local data = dialog and dialog.data
+                    if data and data.tagKey then
+                        self:DeleteTagDefinition(data.tagKey)
+                        self:RefreshSettingsDropdowns()
+                        if CALLBACK_MANAGER and self.settingsPanel then
+                            CALLBACK_MANAGER:FireCallbacks("LAM-RefreshPanel", self.settingsPanel)
+                        end
+                        self:Refresh(true)
+                    end
+                end,
+            },
+            { text = SI_DIALOG_CANCEL },
+        },
+    })
+end
+
+function NTST:ShowTagDeleteDialog(tagKey)
+    if not self:GetTagDefinition(tagKey) or not ZO_Dialogs_ShowDialog then return end
+    self:RegisterTagDeleteDialog()
+    ZO_Dialogs_ShowDialog("NEXTTRY_STATUS_TRACKER_DELETE_TAG", { tagKey = tagKey })
+end
+
 function NTST:CreateSettings()
     local LAM = LibAddonMenu2 or (LibStub and LibStub("LibAddonMenu-2.0"))
     if not LAM then
@@ -224,8 +283,27 @@ function NTST:CreateSettings()
     local guildChoices, guildValues = sanitizeDropdownChoices(self:BuildGuildChoices())
     local guildMemberChoices, guildMemberValues = sanitizeDropdownChoices(self:BuildGuildMemberChoices(self.sv.selectedGuildId))
     local trackedChoices, trackedValues = sanitizeDropdownChoices(self:BuildTrackedChoices())
+    local tagChoices, tagValues = sanitizeDropdownChoices(self:BuildTagChoices())
+    local addPlayerTagChoices, addPlayerTagValues = buildPlayerTagDropdownChoices(self.NormalizeDisplayName(self.sv.selectedManagedPlayer), false, "noMoreTagsAvailable")
+    local removePlayerTagChoices, removePlayerTagValues = buildPlayerTagDropdownChoices(self.NormalizeDisplayName(self.sv.selectedManagedPlayer), true, "noTagsAssigned")
     local soundChoices, soundValues = sanitizeDropdownChoices(buildSoundChoices())
     local controls = {}
+    local function getManagedPlayer()
+        return self.NormalizeDisplayName(self.sv.selectedManagedPlayer)
+    end
+    local function getManagedProfile()
+        local playerName = getManagedPlayer()
+        return playerName and self:GetPlayerProfile(playerName) or nil
+    end
+    local function getSelectedTagDefinition()
+        return self:GetTagDefinition(self.sv.selectedTagKey)
+    end
+    local function refreshManagedControls()
+        if CALLBACK_MANAGER and self.settingsPanel then
+            CALLBACK_MANAGER:FireCallbacks("LAM-RefreshPanel", self.settingsPanel)
+        end
+        self:Refresh(true)
+    end
 
     addControl(controls, { type = "description", text = L("settingsDescription") })
     addControl(controls, {
@@ -338,6 +416,14 @@ function NTST:CreateSettings()
         getFunc = function() return self.sv.showNotesTooltip end,
         setFunc = function(value) self.sv.showNotesTooltip = value and true or false; self:Refresh(true) end,
         default = self.defaults.showNotesTooltip,
+    })
+    addControl(displayControls, {
+        type = "checkbox",
+        name = L("showDisplayRoleMarker"),
+        tooltip = L("showDisplayRoleMarkerTooltip"),
+        getFunc = function() return self.sv.showDisplayRoleMarker end,
+        setFunc = function(value) self.sv.showDisplayRoleMarker = value and true or false; self:Refresh(true) end,
+        default = self.defaults.showDisplayRoleMarker,
     })
     addSlider(displayControls, "locationRefreshSeconds", "locationRefreshSecondsTooltip", 30, 300, 5,
         function() return self.sv.locationRefreshSeconds end,
@@ -456,6 +542,233 @@ function NTST:CreateSettings()
         tooltip = L("refreshDropdownsTooltip"),
         func = function() self:RefreshSettingsDropdowns() end,
     })
+
+    local managedControls = {
+        {
+            type = "dropdown",
+            name = L("managedPlayer"),
+            tooltip = L("managedPlayerTooltip"),
+            choices = trackedChoices,
+            choicesValues = trackedValues,
+            reference = "NextTryStatusTrackerManagedDropdown",
+            getFunc = function() return self.sv.selectedManagedPlayer or "" end,
+            setFunc = function(value)
+                self.sv.selectedManagedPlayer = value or ""
+                self.sv.selectedAddTagKey = ""
+                self.sv.selectedRemoveTagKey = ""
+                self:RefreshSettingsDropdowns()
+                refreshManagedControls()
+            end,
+        },
+        {
+            type = "description",
+            text = function()
+                local profile = getManagedProfile()
+                if not profile then return L("managedPlayerNone") end
+                local sourceKey = profile.source == "friend" and "sourceFriend" or (profile.source == "guild" and "sourceGuild" or "sourceManual")
+                local guild = self.CleanPlayerText(profile.guildName) or (profile.guildId and tostring(profile.guildId)) or L("unknown")
+                return string.format(L("managedPlayerSummary"), L(sourceKey), guild,
+                    self.CleanPlayerText(profile.lastKnownCharacterName) or L("unknown"),
+                    self.CleanPlayerText(profile.lastKnownZone) or L("unknown"),
+                    self:FormatLastSeen(profile.lastSeenAt))
+            end,
+        },
+        {
+            type = "editbox",
+            name = L("trackerNote"),
+            tooltip = L("trackerNoteTooltip"),
+            getFunc = function() local profile = getManagedProfile(); return profile and profile.customNote or "" end,
+            setFunc = function(value) local playerName = getManagedPlayer(); if playerName then self:SetPlayerCustomNote(playerName, value) end end,
+            disabled = function() return getManagedProfile() == nil end,
+            isMultiline = true,
+            isExtraWide = true,
+        },
+        {
+            type = "checkbox",
+            name = L("playerNotifications"),
+            tooltip = L("playerNotificationsTooltip"),
+            getFunc = function() local profile = getManagedProfile(); return profile and profile.notificationEnabled ~= false or false end,
+            setFunc = function(value) local playerName = getManagedPlayer(); if playerName then self:SetPlayerNotificationEnabled(playerName, value) end end,
+            disabled = function() return getManagedProfile() == nil end,
+        },
+        { type = "header", name = L("roles") },
+    }
+
+    for _, key in ipairs(self.roleKeys) do
+        local roleKey = key
+        addControl(managedControls, {
+            type = "checkbox",
+            name = L("role" .. string.upper(string.sub(roleKey, 1, 1)) .. string.sub(roleKey, 2)),
+            getFunc = function() local profile = getManagedProfile(); return profile and profile.roles[roleKey] or false end,
+            setFunc = function(value) local profile = getManagedProfile(); if profile then profile.roles[roleKey] = value and true or false end; refreshManagedControls() end,
+            disabled = function() return getManagedProfile() == nil end,
+        })
+    end
+
+    addControl(managedControls, {
+        type = "dropdown",
+        name = L("displayRole"),
+        tooltip = L("displayRoleTooltip"),
+        choices = { L("displayRoleNone"), L("displayRoleTank"), L("displayRoleHealer"), L("displayRoleDd"), L("displayRoleRaidlead") },
+        choicesValues = { "none", "tank", "healer", "dd", "raidlead" },
+        getFunc = function() local profile = getManagedProfile(); return profile and profile.displayRole or "none" end,
+        setFunc = function(value) local profile = getManagedProfile(); if profile and self.validDisplayRoles[value] then profile.displayRole = value end; refreshManagedControls() end,
+        disabled = function() return getManagedProfile() == nil end,
+    })
+
+    addControl(managedControls, { type = "header", name = L("playerTags") })
+    addControl(managedControls, {
+        type = "description",
+        text = function()
+            local playerName = getManagedPlayer()
+            local names = self:GetPlayerTagNames(playerName)
+            return string.format(L("playerTagsSummary"), #names > 0 and table.concat(names, ", ") or L("none"))
+        end,
+    })
+    addControl(managedControls, {
+        type = "dropdown",
+        name = L("addPlayerTag"),
+        choices = addPlayerTagChoices,
+        choicesValues = addPlayerTagValues,
+        reference = "NextTryStatusTrackerAddTagDropdown",
+        getFunc = function() return self.sv.selectedAddTagKey or "" end,
+        setFunc = function(value) self.sv.selectedAddTagKey = value or "" end,
+        disabled = function()
+            local choices = self:BuildPlayerTagChoices(getManagedPlayer(), false)
+            return #choices == 0
+        end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("addPlayerTag"),
+        func = function()
+            if self:SetPlayerTagAssigned(getManagedPlayer(), self.sv.selectedAddTagKey, true) then
+                self.sv.selectedAddTagKey = ""
+                self:RefreshSettingsDropdowns()
+                refreshManagedControls()
+            end
+        end,
+        disabled = function() return getManagedProfile() == nil or not self:GetTagDefinition(self.sv.selectedAddTagKey) end,
+    })
+    addControl(managedControls, {
+        type = "description",
+        text = function()
+            local choices = self:BuildPlayerTagChoices(getManagedPlayer(), false)
+            return #choices == 0 and L("noMoreTagsAvailable") or ""
+        end,
+    })
+    addControl(managedControls, {
+        type = "dropdown",
+        name = L("removePlayerTag"),
+        choices = removePlayerTagChoices,
+        choicesValues = removePlayerTagValues,
+        reference = "NextTryStatusTrackerRemoveTagDropdown",
+        getFunc = function() return self.sv.selectedRemoveTagKey or "" end,
+        setFunc = function(value) self.sv.selectedRemoveTagKey = value or "" end,
+        disabled = function()
+            local choices = self:BuildPlayerTagChoices(getManagedPlayer(), true)
+            return #choices == 0
+        end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("removePlayerTag"),
+        func = function()
+            if self:SetPlayerTagAssigned(getManagedPlayer(), self.sv.selectedRemoveTagKey, false) then
+                self.sv.selectedRemoveTagKey = ""
+                self:RefreshSettingsDropdowns()
+                refreshManagedControls()
+            end
+        end,
+        disabled = function() return getManagedProfile() == nil or not self:GetTagDefinition(self.sv.selectedRemoveTagKey) end,
+    })
+    addControl(managedControls, {
+        type = "description",
+        text = function()
+            local choices = self:BuildPlayerTagChoices(getManagedPlayer(), true)
+            return #choices == 0 and L("noTagsAssigned") or ""
+        end,
+    })
+
+    addControl(managedControls, { type = "header", name = L("tagManagement") })
+    addControl(managedControls, { type = "description", text = L("defaultTagsDescription") })
+    addControl(managedControls, {
+        type = "dropdown",
+        name = L("selectTag"),
+        tooltip = L("selectTagTooltip"),
+        choices = tagChoices,
+        choicesValues = tagValues,
+        reference = "NextTryStatusTrackerTagDropdown",
+        getFunc = function() return self.sv.selectedTagKey or "" end,
+        setFunc = function(value)
+            self.sv.selectedTagKey = value or ""
+            local definition = getSelectedTagDefinition()
+            self.sv.tagNameInput = definition and definition.name or ""
+            refreshManagedControls()
+        end,
+    })
+    addControl(managedControls, {
+        type = "editbox",
+        name = L("tagName"),
+        tooltip = L("tagNameTooltip"),
+        getFunc = function() return self.sv.tagNameInput or "" end,
+        setFunc = function(value) self.sv.tagNameInput = value or "" end,
+        isMultiline = false,
+        isExtraWide = false,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("addTag"),
+        tooltip = L("addTagTooltip"),
+        func = function()
+            if not self:AddTagDefinition(self.sv.tagNameInput) then msg(L("tagNameInvalidOrDuplicate")) end
+            self:RefreshSettingsDropdowns()
+            refreshManagedControls()
+        end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("renameTag"),
+        tooltip = L("renameTagTooltip"),
+        func = function()
+            if not self:RenameTagDefinition(self.sv.selectedTagKey, self.sv.tagNameInput) then msg(L("tagNameInvalidOrDuplicate")) end
+            self:RefreshSettingsDropdowns()
+            refreshManagedControls()
+        end,
+        disabled = function() return getSelectedTagDefinition() == nil end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("deleteTag"),
+        tooltip = L("deleteTagTooltip"),
+        func = function()
+            self:ShowTagDeleteDialog(self.sv.selectedTagKey)
+        end,
+        disabled = function() return getSelectedTagDefinition() == nil end,
+    })
+
+    addControl(managedControls, {
+        type = "button",
+        name = L("resetRolesAndTags"),
+        tooltip = L("resetRolesAndTagsTooltip"),
+        func = function() local playerName = getManagedPlayer(); if playerName then self:ResetPlayerRolesAndTags(playerName); refreshManagedControls() end end,
+        disabled = function() return getManagedProfile() == nil end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("resetLastKnown"),
+        tooltip = L("resetLastKnownTooltip"),
+        func = function() local playerName = getManagedPlayer(); if playerName then self:ResetPlayerLastKnownData(playerName); refreshManagedControls() end end,
+        disabled = function() return getManagedProfile() == nil end,
+    })
+    addControl(managedControls, {
+        type = "button",
+        name = L("removeManagedPlayer"),
+        tooltip = L("removeSelectedPlayerTooltip"),
+        func = function() local playerName = getManagedPlayer(); if playerName then self:RemovePlayer(playerName); self:RefreshSettingsDropdowns(); refreshManagedControls() end end,
+        disabled = function() return getManagedProfile() == nil end,
+    })
+    addControl(controls, { type = "submenu", name = L("sectionManagePlayers"), controls = managedControls })
 
     addControl(controls, { type = "submenu", name = L("sectionFriendImport"), controls = {
         {
